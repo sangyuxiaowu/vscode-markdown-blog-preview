@@ -3,6 +3,7 @@ import { BlogView } from "./BlogPreviewWebview";
 
 export function activate(context: vscode.ExtensionContext) {
 
+
 	let blogPreview: BlogView;
 
 	context.subscriptions.push(

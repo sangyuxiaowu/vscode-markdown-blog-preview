@@ -6,21 +6,16 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="renderer" content="webkit">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-        }
-
-        #container {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-        }
-    </style>
+    <link rel="stylesheet" type="text/css"  href="[insert-vscode-css]">
     <insert-vscode-resource/>
 </head>
 <body>
+    <select class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target">
+        <option>测试测试</option>
+        <option>测试测试</option>
+        <option>测试测试</option>
+        <option>测试测试</option>
+    </select>
     <div id="view"></div>
     <script>
         const vscode = acquireVsCodeApi();

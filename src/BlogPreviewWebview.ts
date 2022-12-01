@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
+import { deflate } from "zlib";
 
 class BlogView{
     context: vscode.ExtensionContext;
@@ -46,8 +47,13 @@ class BlogView{
 
         const html: string = fs.readFileSync(path.join(this.getHtmlAssetPath(
             "webview.html"))).toString("utf-8");
-        this.view.webview.html = html.replace(
-            /<insert-vscode-resource\/>/g, loadingScriptHtml.join("\r\n"));
+
+        const cssfile = vscode.Uri.file(path.join(vscode.env.appRoot,"out/vs/workbench/workbench.desktop.main.css"));
+        const cssurl = this.view.webview.asWebviewUri(cssfile);
+        console.log(cssurl);
+        this.view.webview.html = html
+            .replace(/<insert-vscode-resource\/>/g, loadingScriptHtml.join("\r\n"))
+            .replace(/\[insert-vscode-css\]/g,`${cssurl}`);
     }
     registerDisposables() {
         this.view.onDidDispose(

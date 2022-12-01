@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>Markdown Blog Preview</title>
+    <meta name="viewport" content="width=device-width">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="renderer" content="webkit">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        #container {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+    <insert-vscode-resource/>
+</head>
+<body>
+    <div id="view"></div>
+    <script>
+        const vscode = acquireVsCodeApi();
+        window.addEventListener("message", event => {
+            const message = event.data;
+            switch (message.command) {
+                case "saveSvg": {
+                    let svg = document.querySelectorAll("svg")[0];
+                    svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+                    vscode.postMessage({ command: "saveSvgData", html: svg.outerHTML });
+                    break;
+                }
+
+                case "renderMarkdown": {
+                    document.getElementById("view").innerHTML = message.data
+                    break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

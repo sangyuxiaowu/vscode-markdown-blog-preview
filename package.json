@@ -1,7 +1,7 @@
 {
-  "name": "markdown-preview-blog",
-  "displayName": "Markdown Preview Blog",
-  "description": "a blog view",
+  "name": "markdown-blog-preview",
+  "displayName": "Markdown Blog Preview",
+  "description": "Markdown 转换微信公众号文章。Render markdown as inline html, and provide a variety of exquisite styles to facilitate publishing articles.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.73.0"
@@ -10,16 +10,30 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:markdown-preview-blog.helloWorld"
+    "onCommand:mdbp.showView"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "markdown-preview-blog.helloWorld",
-        "title": "Hello World"
+          "when": "resourceLangId == markdown",
+          "command": "mdbp.showView",
+          "title": "预览文章",
+          "icon": {
+              "light": "./icon/markdown-preview-blog-theme-light.svg",
+              "dark": "./icon/markdown-preview-blog-theme-dark.svg"
+          }
       }
-    ]
+    ],
+    "menus": {
+        "editor/title": [
+            {
+                "when": "resourceLangId == markdown",
+                "command": "mdbp.showView",
+                "group": "navigation"
+            }
+        ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

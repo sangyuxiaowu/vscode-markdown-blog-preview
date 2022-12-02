@@ -23,7 +23,8 @@ class BlogView{
             {
                 enableScripts: true,
                 localResourceRoots: [
-                    vscode.Uri.file(path.join(context.extensionPath, "html"))
+                    vscode.Uri.file(path.join(context.extensionPath, "html")),
+                    vscode.Uri.file(vscode.env.appRoot)
                 ]
             }
         );
@@ -48,12 +49,12 @@ class BlogView{
         const html: string = fs.readFileSync(path.join(this.getHtmlAssetPath(
             "webview.html"))).toString("utf-8");
 
-        const cssfile = vscode.Uri.file(path.join(vscode.env.appRoot,"out/vs/workbench/workbench.desktop.main.css"));
-        const cssurl = this.view.webview.asWebviewUri(cssfile);
-        console.log(cssurl);
+        const appRoot = this.view.webview.asWebviewUri(
+            vscode.Uri.file(vscode.env.appRoot)
+        );
         this.view.webview.html = html
             .replace(/<insert-vscode-resource\/>/g, loadingScriptHtml.join("\r\n"))
-            .replace(/\[insert-vscode-css\]/g,`${cssurl}`);
+            .replace(/\[insert-vscode-approot\]/g,`${appRoot}`);
     }
     registerDisposables() {
         this.view.onDidDispose(
@@ -76,6 +77,11 @@ class BlogView{
         let data = editingEditor.document.getText();
         this.view.webview.postMessage({
             command: "renderMarkdown", data: data
+        });
+    }
+    scrollPreview(percentage :number) {
+        this.view.webview.postMessage({
+            command: "scroll", data: percentage
         });
     }
 }

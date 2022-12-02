@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 	// 滚动了visibleRanges[0][0].line
 	vscode.window.onDidChangeTextEditorVisibleRanges((e:vscode.TextEditorVisibleRangesChangeEvent)=>{
-		if (!!e && !!e.textEditor && (e.textEditor === vscode.window.activeTextEditor) && e.textEditor.document.languageId === "markdown") {
+		if (!!e && !!e.textEditor && e.textEditor.document.languageId === "markdown") {
             blogPreview.scrollPreview(e.visibleRanges[0].start.line / e.textEditor.document.lineCount);
         }
 	});

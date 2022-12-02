@@ -10,10 +10,16 @@
     <link rel="stylesheet" type="text/css" href="[insert-vscode-approot]/out/vs/workbench/workbench.desktop.main.css">
     <link rel="stylesheet" type="text/css" href="workbench.desktop.main.css">
     <style>
-        select {
+        select.monaco-select-box {
             background-color: var(--vscode-dropdown-background);
             color: var(--vscode-dropdown-foreground);
             border-color: var(--vscode-dropdown-border);
+            width: 90px;
+        }
+        label{
+            margin: 0 5px;
+            font-weight: bold;
+            font-size: 14px;
         }
         .monaco-button{
             color: var(--vscode-button-foreground);
@@ -25,22 +31,24 @@
         }
 
 
-        .settings-editor{
+        .settings{
             position: fixed;
             width: 100%;
             top: 0;
         }
-        .settings-editor .monaco-button{
+        .settings .monaco-button{
             width: 95%;
             margin: 0 auto;
         }
 
-        .settings-tree-container {
+        .settings-body {
             display: flex;
+            margin: 8px;
         }
 
-        .settings-tree-container>div {
+        .settings-item {
             flex: 1;
+            align-items: center;
         }
 
         .preview-wrapper{
@@ -48,9 +56,8 @@
             justify-content: center;
             display: flex;
             overflow: scroll;
-            padding: 20px;
-            margin-top: 155px;
-            height: calc(100vh - 195px);
+            margin-top: 50px;
+            height: calc(100vh - 30px);
         }
         .preview{
             margin: 0 auto;
@@ -66,84 +73,42 @@
     <insert-vscode-resource />
 </head>
 
-<div class="settings-editor">
+<div class="settings">
     <div class="settings-body">
-        <div class="settings-tree-container">
-
-                <div class="setting-item-contents settings-row-inner-container is-configured">
-                    <div class="setting-item-title">
-                        <div class="setting-item-cat-label-container">
-                            <span class="setting-item-label">适用平台</span>
-                        </div>
-                    </div>
-                    <div class="setting-item-description">
-                        <div class="setting-item-markdown">
-                            <p>文章发布的平台</p>
-                        </div>
-                    </div>
-                    <div class="setting-item-value">
-                        <div class="setting-item-control select-container">
-                            <select class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                                tabindex="-1" data-focusable="true">
-                                <option value="wechat">微信公众号</option>
-                                <option value="bilibili">哔哩哔哩</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-
-                <div class="setting-item-contents settings-row-inner-container is-configured">
-                    <div class="setting-item-title">
-                        <div class="setting-item-cat-label-container">
-                            <span class="setting-item-label">字体大小</span>
-                        </div>
-                    </div>
-                    <div class="setting-item-description">
-                        <div class="setting-item-markdown">
-                            <p>文章默认字体大小</p>
-                        </div>
-                    </div>
-                    <div class="setting-item-value">
-                        <div class="setting-item-control select-container">
-                            <select class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                                tabindex="-1" data-focusable="true">
-                                <option value="14">14px 稍小</option>
-                                <option value="15">15px 默认</option>
-                                <option value="16">16px 稍大</option>
-                                <option value="17">17px 很大</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="setting-item-contents settings-row-inner-container is-configured">
-                    <div class="setting-item-title">
-                        <div class="setting-item-cat-label-container">
-                            <span class="setting-item-label">样式主题</span>
-                        </div>
-                    </div>
-                    <div class="setting-item-description">
-                        <div class="setting-item-markdown">
-                            <p>文章样式主题</p>
-                        </div>
-                    </div>
-                    <div class="setting-item-value">
-                        <div class="setting-item-control select-container">
-                            <select class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                                tabindex="-1" data-focusable="true">
-                                <option value="0">默认主题</option>
-                                <option value="15">15px 默认</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
+        <div class="settings-item">
+            <label>平台</label>
+            <select class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                tabindex="-1" data-focusable="true">
+                <option value="wechat">微信公众号</option>
+                <option value="bilibili">哔哩哔哩</option>
+            </select>
         </div>
+        <div class="settings-item">
+            <label>字体</label>
+            <select class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                tabindex="-1" data-focusable="true">
+                <option value="14">14px 稍小</option>
+                <option value="15">15px 默认</option>
+                <option value="16">16px 稍大</option>
+                <option value="17">17px 很大</option>
+            </select>
+        </div>
+        <div class="settings-item">
+            <label>主题</label>
+            <select class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                tabindex="-1" data-focusable="true">
+                <option value="0">默认</option>
+                <option value="15">自定义</option>
+            </select>
+        </div>
+        <div class="settings-item">
+            <a class="monaco-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
+                <div class="monaco-button-label">复制</div>
+            </a>
+        </div>
+
     </div>
-    <a class="monaco-button monaco-description-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
-        <div class="monaco-button-label">点击复制</div>
-        <div class="monaco-button-description">前往平台编辑器粘贴</div>
-    </a>
+
 </div>
 
 

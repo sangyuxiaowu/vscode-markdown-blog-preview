@@ -142,6 +142,33 @@
             }
         }
     });
+    // 点击复制富文本信息到剪贴板
+    document.getElementById("copy").addEventListener("click", () => {
+        const range = document.createRange();
+        range.selectNode(document.getElementById("view"));
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) selection.removeAllRanges();
+        selection.addRange(range);
+        document.execCommand("copy");
+        vscode.postMessage({
+            command: "msg",
+            data: {
+                type: "success",
+                message: "复制成功"
+            }
+        });
+    });
+    // 滚动同步
+    previewWrapper.addEventListener("scroll", () => {
+        const scrollTop = previewWrapper.scrollTop;
+        const scrollHeight = previewWrapper.scrollHeight;
+        const clientHeight = previewWrapper.clientHeight;
+        const scrollPercent = scrollTop / (scrollHeight - clientHeight);
+        vscode.postMessage({
+            command: "scroll",
+            data: scrollPercent
+        });
+    });
 </script>
 </body>
 

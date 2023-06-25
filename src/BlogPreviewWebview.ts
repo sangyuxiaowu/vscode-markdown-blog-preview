@@ -84,7 +84,7 @@ class BlogView{
     updatePreview() {
         const editingEditor = vscode.window.activeTextEditor;
         if (editingEditor === undefined) {
-            vscode.window.showWarningMessage("活动编辑器无效");
+            console.log("活动编辑器无效");
             return;
         }
 
@@ -140,21 +140,26 @@ class BlogView{
         });
     }
     scrollEdit(percentage :number) {
+        // TODO: 效果存在异常，需要优化
+
         const editingEditor = vscode.window.activeTextEditor;
         if (editingEditor === undefined) {
-            vscode.window.showWarningMessage("活动编辑器无效");
+            
+            console.log("活动编辑器无效");
             return;
         }
         // 判断当前激活的编辑器文件是 markdown 文件
         if (editingEditor.document.languageId !== "markdown") {
             return;
         }
-
-        const lineCount = editingEditor.document.lineCount;
-        const line = Math.floor(lineCount * percentage);
-        const position = editingEditor.document.lineAt(line).range.start;
-        editingEditor.selection = new vscode.Selection(position, position);
-        editingEditor.revealRange(new vscode.Range(position, position));
+        // 获取当前编辑器的总行数
+        const totalLine = editingEditor.document.lineCount;
+        // 计算出当前编辑器的滚动条滚动的行数
+        const scrollLine = Math.round(totalLine * percentage);
+        // 计算出当前编辑器滚动条滚动的位置
+        const scrollPosition = editingEditor.document.lineAt(scrollLine).range.start;
+        // 滚动到指定位置
+        editingEditor.revealRange(new vscode.Range(scrollPosition, scrollPosition));
     }
     // 定义接收 vebview 传来的消息的处理函数
     onDidReceiveMessage(message: any) {

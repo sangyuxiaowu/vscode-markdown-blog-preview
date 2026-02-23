@@ -2,6 +2,7 @@
   "name": "markdown-blog-preview",
   "displayName": "Markdown Blog Preview",
   "description": "Markdown 文章排版神器，多平台支持，可定制 JSON 主题，实时查看效果。",
+  "publisher": "sangsq",
   "version": "1.0.0",
   "license": "Apache-2.0",
   "icon": "icon/logo.png",
@@ -64,7 +65,8 @@
         "mdbp.themeConfigFiles": {
           "type": "array",
           "default": [
-            "themes/default.json"
+            "themes/default.json",
+            "themes/wechat.json"
           ],
           "items": {
             "type": "string"
@@ -87,7 +89,9 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src --ext .ts",
     "test": "node ./out/test/runTest.js",
-    "publish": "vsce package --no-dependencies"
+    "vsix": "vsce package --no-dependencies",
+    "publish": "npm run vsix",
+    "publish:marketplace": "vsce publish --no-dependencies"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

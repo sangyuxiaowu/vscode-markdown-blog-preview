@@ -71,6 +71,11 @@
     "a": {
       "color": "#0969da",
       "text-decoration": "none"
+    },
+    "figcaption": {
+        "text-align": "center",
+        "color": "#888",
+        "font-size": "0.8em"
     }
   }
 }

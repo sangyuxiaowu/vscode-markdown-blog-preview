@@ -363,6 +363,50 @@
         container.innerHTML = rawHtml;
         const theme = findThemeById(selectedThemeId);
 
+        const images = container.querySelectorAll("img");
+        images.forEach((img) => {
+            if (img.closest("figure")) {
+                return;
+            }
+
+            const altText = (img.getAttribute("alt") || "").trim();
+            const titleText = (img.getAttribute("title") || "").trim();
+            const captionText = altText || titleText;
+            if (!captionText) {
+                return;
+            }
+
+            const figure = document.createElement("figure");
+            const figcaption = document.createElement("figcaption");
+            figcaption.textContent = captionText;
+
+            const parent = img.parentElement;
+            if (parent && parent.tagName.toLowerCase() === "p") {
+                const onlyImageInParagraph = Array.from(parent.childNodes).every((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        return node === img;
+                    }
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        return !(node.textContent || "").trim();
+                    }
+                    return true;
+                });
+
+                if (onlyImageInParagraph && parent.parentNode) {
+                    parent.parentNode.replaceChild(figure, parent);
+                } else if (parent) {
+                    parent.insertBefore(figure, img);
+                    parent.removeChild(img);
+                }
+            } else if (parent) {
+                parent.insertBefore(figure, img);
+                parent.removeChild(img);
+            }
+
+            figure.appendChild(img);
+            figure.appendChild(figcaption);
+        });
+
         const blockCodes = container.querySelectorAll("pre > code");
         blockCodes.forEach(code => {
             const pre = code.parentElement;

@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
-import { deflate } from "zlib";
 
 class BlogView{
     context: vscode.ExtensionContext;
@@ -11,6 +10,8 @@ class BlogView{
     currentWorkspacePath: string = "";
     // 当前编辑的文件
     currentEditingFilePath: string = "";
+    // 标记是否正在处理来自预览侧的滚动，避免双向同步抖动
+    isApplyingWebviewScroll: boolean = false;
 
     configureWebviewScripts(webviewScripts: string[]) {
         //webviewScripts.push("libs/d3.js");
@@ -52,9 +53,7 @@ class BlogView{
     initializeWebviewHtml() {
         let loadingScriptHtml: string[] = [];
         this.configureWebviewScripts([]).forEach(path => {
-            var jsUri = vscode.Uri.file(this.getHtmlAssetPath(path)).with({
-                scheme: "vscode-resource"
-            });
+            const jsUri = this.view.webview.asWebviewUri(vscode.Uri.file(this.getHtmlAssetPath(path)));
             loadingScriptHtml.push(
                 `<script src="${jsUri}"></script>`);
         });
@@ -87,6 +86,9 @@ class BlogView{
             console.log("活动编辑器无效");
             return;
         }
+        if (editingEditor.document.languageId !== "markdown") {
+            return;
+        }
 
         // 更新当前编辑的文件
         this.currentEditingFilePath = editingEditor.document.fileName;
@@ -111,21 +113,22 @@ class BlogView{
         const imgArr = data.match(imgReg);
         if (imgArr) {
             for (let i = 0; i < imgArr.length; i++) {
-                let src = imgArr[i].match(srcReg);
+                const src = imgArr[i].match(srcReg);
                 if (src && src[1]) {
-                    // 判断图片文件是否非网络图
-                    const networkImagePathPattern = /^(https?|ftp):\/\//; // 匹配以 http://、https://、ftp:// 开头的路径
-                    if (networkImagePathPattern.test(src[1])) {
+                    const srcValue = src[1].trim();
+                    const skipConvertPathPattern = /^(https?|ftp|data|vscode-resource|vscode-webview-resource):/i;
+                    if (skipConvertPathPattern.test(srcValue)) {
                         continue;
                     }
 
-                    // 按照相对路径文件处理，转换为 vscode-resource URI
-                    const imgUri = vscode.Uri.file(
-                        path.join(path.dirname(editingEditor.document.fileName), src[1])
-                    );
-                    const vsImgUri = this.view.webview.asWebviewUri(imgUri);
-                    data = data.replace(src[1], vsImgUri.toString());
+                    const imgUri = this.resolveLocalImagePath(srcValue, editingEditor.document.fileName);
+                    if (!imgUri) {
+                        continue;
+                    }
 
+                    const vsImgUri = this.view.webview.asWebviewUri(imgUri);
+                    const replacedTag = imgArr[i].replace(src[1], vsImgUri.toString());
+                    data = data.replace(imgArr[i], replacedTag);
                 }
             }
         }
@@ -135,13 +138,14 @@ class BlogView{
         });
     }
     scrollPreview(percentage :number) {
+        if (this.isApplyingWebviewScroll) {
+            return;
+        }
         this.view.webview.postMessage({
             command: "scroll", data: percentage
         });
     }
     scrollEdit(percentage :number) {
-        // TODO: 效果存在异常，需要优化
-
         const editingEditor = vscode.window.activeTextEditor;
         if (editingEditor === undefined) {
             
@@ -155,14 +159,21 @@ class BlogView{
         // 获取当前编辑器的总行数
         const totalLine = editingEditor.document.lineCount;
         // 计算出当前编辑器的滚动条滚动的行数
-        const scrollLine = Math.round(totalLine * percentage);
+        const scrollLine = Math.min(totalLine - 1, Math.max(0, Math.round(totalLine * percentage)));
         // 计算出当前编辑器滚动条滚动的位置
         const scrollPosition = editingEditor.document.lineAt(scrollLine).range.start;
         // 滚动到指定位置
+        this.isApplyingWebviewScroll = true;
         editingEditor.revealRange(new vscode.Range(scrollPosition, scrollPosition));
+        setTimeout(() => {
+            this.isApplyingWebviewScroll = false;
+        }, 120);
     }
     // 定义接收 vebview 传来的消息的处理函数
     onDidReceiveMessage(message: any) {
+        if (!message || typeof message.command !== "string") {
+            return;
+        }
         switch (message.command) {
             case "scroll":
                 this.scrollEdit(message.data);
@@ -171,6 +182,18 @@ class BlogView{
                 this.showMessage(message.data.message, message.data.type);
                 break;
         }
+    }
+
+    resolveLocalImagePath(imagePath: string, markdownFilePath: string): vscode.Uri | undefined {
+        if (path.isAbsolute(imagePath)) {
+            return vscode.Uri.file(imagePath);
+        }
+
+        if (imagePath.startsWith("/") && this.currentWorkspacePath) {
+            return vscode.Uri.file(path.join(this.currentWorkspacePath, imagePath));
+        }
+
+        return vscode.Uri.file(path.join(path.dirname(markdownFilePath), imagePath));
     }
     // 消息提示框
     showMessage(message: string, type: string) {

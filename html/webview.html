@@ -75,11 +75,13 @@
     <insert-vscode-resource />
 </head>
 
+<body>
+
 <div class="settings">
     <div class="settings-body">
         <div class="settings-item">
             <label>平台</label>
-            <select class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+            <select id="platform" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
                 tabindex="-1" data-focusable="true">
                 <option value="wechat">微信公众号</option>
                 <option value="bilibili">哔哩哔哩</option>
@@ -87,10 +89,10 @@
         </div>
         <div class="settings-item">
             <label>字体</label>
-            <select class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+            <select id="font-size" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
                 tabindex="-1" data-focusable="true">
                 <option value="14" style="font-size: 14px;">14px 稍小</option>
-                <option value="15" style="font-size: 15px;">15px 默认</option>
+                <option value="15" style="font-size: 15px;" selected>15px 默认</option>
                 <option value="16" style="font-size: 16px;">16px 稍大</option>
                 <option value="17" style="font-size: 17px;">17px 很大</option>
             </select>
@@ -129,12 +131,42 @@
 <script>
     const vscode = acquireVsCodeApi();
     const previewWrapper = document.getElementsByClassName("preview-wrapper")[0];
-    const previeinfo = document.getElementsByClassName("preview")[0];
+    const previewInfo = document.getElementsByClassName("preview")[0];
+    const platformSelect = document.getElementById("platform");
+    const fontSizeSelect = document.getElementById("font-size");
+    let syncingFromExtension = false;
+
+    function applyPlatformWidth(platform) {
+        previewInfo.style.width = platform === "bilibili" ? "680px" : "375px";
+    }
+
+    function applyFontSize(fontSize) {
+        const parsed = Number(fontSize);
+        if (!Number.isNaN(parsed) && parsed > 0) {
+            previewInfo.style.fontSize = `${parsed}px`;
+        }
+    }
+
+    applyPlatformWidth(platformSelect.value);
+    applyFontSize(fontSizeSelect.value);
+
+    platformSelect.addEventListener("change", () => {
+        applyPlatformWidth(platformSelect.value);
+    });
+
+    fontSizeSelect.addEventListener("change", () => {
+        applyFontSize(fontSizeSelect.value);
+    });
+
     window.addEventListener("message", event => {
         const message = event.data;
         switch (message.command) {
             case "scroll": {
-                previewWrapper.scrollTo(0, previeinfo.clientHeight * message.data);
+                syncingFromExtension = true;
+                previewWrapper.scrollTo(0, previewInfo.clientHeight * message.data);
+                requestAnimationFrame(() => {
+                    syncingFromExtension = false;
+                });
                 break;
             }
 
@@ -162,6 +194,9 @@
     });
     // 滚动同步
     previewWrapper.addEventListener("scroll", () => {
+        if (syncingFromExtension) {
+            return;
+        }
         const scrollTop = previewWrapper.scrollTop;
         const scrollHeight = previewWrapper.scrollHeight;
         const clientHeight = previewWrapper.clientHeight;

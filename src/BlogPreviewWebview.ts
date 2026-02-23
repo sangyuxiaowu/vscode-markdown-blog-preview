@@ -12,6 +12,8 @@ interface ThemeConfigItem {
     contentCss?: string;
 }
 
+const DEFAULT_THEME_RELATIVE_PATH = "themes/default.json";
+
 class BlogView{
     context: vscode.ExtensionContext;
     view: vscode.WebviewPanel;
@@ -176,13 +178,16 @@ class BlogView{
     }
 
     loadThemeConfigs(): ThemeConfigItem[] {
+        const defaultTheme = this.loadDefaultThemeConfig();
+
         const configuration = vscode.workspace.getConfiguration("mdbp");
         const configuredFiles = configuration.get<string[]>("themeConfigFiles", []);
         if (!configuredFiles || configuredFiles.length === 0) {
-            return [];
+            return defaultTheme ? [defaultTheme] : [];
         }
 
         const themes: ThemeConfigItem[] = [];
+        const defaultThemePath = this.resolveThemeConfigPath(DEFAULT_THEME_RELATIVE_PATH);
         configuredFiles.forEach((itemPath, index) => {
             if (!itemPath || !itemPath.trim()) {
                 return;
@@ -190,6 +195,10 @@ class BlogView{
 
             const absolutePath = this.resolveThemeConfigPath(itemPath.trim());
             if (!absolutePath || !fs.existsSync(absolutePath)) {
+                return;
+            }
+
+            if (defaultThemePath && path.resolve(absolutePath) === path.resolve(defaultThemePath)) {
                 return;
             }
 
@@ -205,7 +214,35 @@ class BlogView{
             }
         });
 
+        if (defaultTheme) {
+            return [defaultTheme, ...themes];
+        }
+
         return themes;
+    }
+
+    loadDefaultThemeConfig(): ThemeConfigItem | undefined {
+        const defaultPath = this.resolveThemeConfigPath(DEFAULT_THEME_RELATIVE_PATH);
+        if (!defaultPath || !fs.existsSync(defaultPath)) {
+            return undefined;
+        }
+
+        try {
+            const raw = fs.readFileSync(defaultPath, "utf-8");
+            const parsed = JSON.parse(raw) as Record<string, unknown>;
+            const normalized = this.normalizeThemeConfig(parsed, 0);
+            if (!normalized) {
+                return undefined;
+            }
+
+            return {
+                ...normalized,
+                id: "default",
+                name: normalized.name || "默认"
+            };
+        } catch {
+            return undefined;
+        }
     }
 
     resolveThemeConfigPath(inputPath: string): string | undefined {

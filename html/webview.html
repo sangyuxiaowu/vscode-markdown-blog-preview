@@ -322,7 +322,11 @@
     }
 
     function setThemeOptions(themes) {
-        currentThemes = [{ id: "default", name: "默认" }, ...themes];
+        currentThemes = Array.isArray(themes) ? themes : [];
+
+        if (currentThemes.length === 0) {
+            currentThemes = [{ id: "default", name: "默认" }];
+        }
 
         themeSelect.innerHTML = "";
         currentThemes.forEach(theme => {
@@ -334,10 +338,7 @@
 
         const available = currentThemes.some(theme => theme.id === selectedThemeId);
         if (!available) {
-            selectedThemeId = "default";
-        }
-        if (selectedThemeId === "default" && themes.length > 0) {
-            selectedThemeId = themes[0].id;
+            selectedThemeId = currentThemes[0].id;
         }
         themeSelect.value = selectedThemeId;
         applyTheme(selectedThemeId);

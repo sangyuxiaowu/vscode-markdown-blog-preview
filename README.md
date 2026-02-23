@@ -1,71 +1,70 @@
-# markdown-preview-blog README
+# Markdown Blog Preview
 
-This is the README for your extension "markdown-preview-blog". After writing up a brief description, we recommend including the following sections.
+Markdown 文章排版发布插件，面向 公众号/博客/知乎/Bilibili 文章排版场景，提供「实时预览 + 主题配置 + 内联样式复制」能力。
 
-## Features
+## 功能亮点
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Markdown 实时预览（编辑与预览联动）
+- 复制为富文本 HTML（适配发布场景）
+- 主题 JSON 配置（可扩展、可复用）
+- 行内代码样式可配置（`inlineCodeStyle`）
+- 代码字体固定，正文支持无衬线/衬线切换
 
-For example if there is an image subfolder under your extension project workspace:
+## 使用方式
 
-\!\[feature X\]\(images/feature-x.png\)
+1. 打开 Markdown 文件。
+2. 点击编辑器标题栏命令：`预览文章`。
+3. 在预览页调整字号、字体、主题。
+4. 点击 `复制`，粘贴到目标发布平台。
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## 主题配置文件（JSON）
 
-## Requirements
+可以在 VS Code 设置里配置 `mdbp.themeConfigFiles`，填入一个或多个主题 JSON 文件路径。
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- 支持工作区相对路径（如 `themes/wechat.json`）
+- 支持绝对路径（Windows 如 `E:/themes/wechat.json`）
 
-## Extension Settings
+示例配置（设置项）：
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+```json
+"mdbp.themeConfigFiles": [
+	"themes/wechat.json",
+	"themes/minimal.json"
+]
+```
 
-For example:
+示例主题文件：
 
-This extension contributes the following settings:
+```json
+{
+	"name": "公众号简洁风",
+	"previewStyle": {
+		"background": "#ffffff",
+		"padding": "24px",
+		"width": "375px",
+		"boxShadow": "0 0 40px rgb(0 0 0 / 10%)"
+	},
+	"contentStyle": {
+		"line-height": "1.9",
+		"color": "#2f2f2f"
+	},
+	"elementStyles": {
+		"h1": {
+			"font-size": "26px"
+		},
+		"p": {
+			"margin": "0.9em 0"
+		}
+	},
+	"inlineCodeStyle": {
+		"color": "#0f172a",
+		"background": "#e2e8f0",
+		"borderRadius": "4px",
+		"padding": "2px 6px"
+	}
+}
+```
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+主题会显示在预览页的“主题”下拉中，切换后立即生效。
 
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+仓库内已提供默认主题文件：`themes/default.json`，可直接添加到 `mdbp.themeConfigFiles` 使用。

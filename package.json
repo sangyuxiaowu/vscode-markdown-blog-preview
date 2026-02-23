@@ -30,6 +30,21 @@
           "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "title": "Markdown Blog Preview",
+      "properties": {
+        "mdbp.themeConfigFiles": {
+          "type": "array",
+          "default": [
+            "themes/default.json"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "主题配置 JSON 文件路径列表（支持工作区相对路径与绝对路径）。例如：`[\"themes/wechat.json\", \"themes/minimal.json\"]`"
+        }
+      }
     }
   },
   "permissions": [

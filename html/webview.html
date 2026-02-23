@@ -152,9 +152,12 @@
     const previewWrapper = document.getElementsByClassName("preview-wrapper")[0];
     const previewInfo = document.getElementsByClassName("preview")[0];
     const fontSizeSelect = document.getElementById("font-size");
+    const themeSelect = document.getElementById("theme");
     const viewHost = document.getElementById("view-host");
     let syncingFromExtension = false;
     let latestMarkdownHtml = "";
+    let currentThemes = [];
+    let selectedThemeId = "default";
 
     const shadowRoot = viewHost.attachShadow({ mode: "open" });
     const shadowStyle = document.createElement("style");
@@ -181,10 +184,93 @@
             border-left: 4px solid #ddd;
             color: #666;
         }
+        #view table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+        #view th, #view td {
+            border: 1px solid #e5e7eb;
+            padding: 8px 10px;
+            text-align: left;
+        }
     `;
+    const shadowThemeStyle = document.createElement("style");
     const shadowView = document.createElement("div");
     shadowView.id = "view";
-    shadowRoot.append(shadowStyle, shadowView);
+    shadowRoot.append(shadowStyle, shadowThemeStyle, shadowView);
+
+    const defaultPreviewStyle = {
+        width: "375px",
+        background: "#fff",
+        padding: "20px",
+        boxShadow: "0 0 60px rgb(0 0 0 / 10%)"
+    };
+
+    function findThemeById(themeId) {
+        return currentThemes.find(theme => theme.id === themeId);
+    }
+
+    function normalizeStyleObject(style) {
+        if (!style || typeof style !== "object") {
+            return {};
+        }
+
+        const result = {};
+        Object.entries(style).forEach(([key, value]) => {
+            if (typeof value === "string") {
+                result[key] = value;
+            }
+        });
+        return result;
+    }
+
+    function styleObjectToCss(style) {
+        const entries = Object.entries(normalizeStyleObject(style));
+        if (entries.length === 0) {
+            return "";
+        }
+        return entries.map(([key, value]) => `${key}: ${value};`).join(" ");
+    }
+
+    function applyTheme(themeId) {
+        selectedThemeId = themeId;
+        const theme = findThemeById(themeId);
+
+        const previewStyle = Object.assign({}, defaultPreviewStyle, normalizeStyleObject(theme?.previewStyle));
+        Object.assign(previewInfo.style, previewStyle);
+
+        const contentStyleCss = styleObjectToCss(theme?.contentStyle);
+        const customCss = typeof theme?.contentCss === "string" ? theme.contentCss : "";
+        shadowThemeStyle.textContent = `
+            #view { ${contentStyleCss} }
+            ${customCss}
+        `;
+
+        applyFontSize(fontSizeSelect.value);
+    }
+
+    function setThemeOptions(themes) {
+        currentThemes = [{ id: "default", name: "默认" }, ...themes];
+
+        themeSelect.innerHTML = "";
+        currentThemes.forEach(theme => {
+            const option = document.createElement("option");
+            option.value = theme.id;
+            option.textContent = theme.name;
+            themeSelect.appendChild(option);
+        });
+
+        const available = currentThemes.some(theme => theme.id === selectedThemeId);
+        if (!available) {
+            selectedThemeId = "default";
+        }
+        if (selectedThemeId === "default" && themes.length > 0) {
+            selectedThemeId = themes[0].id;
+        }
+        themeSelect.value = selectedThemeId;
+        applyTheme(selectedThemeId);
+    }
 
     function applyFontSize(fontSize) {
         const parsed = Number(fontSize);
@@ -235,11 +321,16 @@
         shadowView.innerHTML = html;
     }
 
-    previewInfo.style.width = "375px";
+    applyTheme("default");
     applyFontSize(fontSizeSelect.value);
 
     fontSizeSelect.addEventListener("change", () => {
         applyFontSize(fontSizeSelect.value);
+    });
+
+    themeSelect.addEventListener("change", () => {
+        applyTheme(themeSelect.value);
+        renderMarkdownToPreview(latestMarkdownHtml);
     });
 
     window.addEventListener("message", event => {
@@ -257,6 +348,10 @@
             case "renderMarkdown": {
                 latestMarkdownHtml = message.data || "";
                 renderMarkdownToPreview(latestMarkdownHtml);
+                break;
+            }
+            case "updateThemes": {
+                setThemeOptions(Array.isArray(message.data) ? message.data : []);
                 break;
             }
         }

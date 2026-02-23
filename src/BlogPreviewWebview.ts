@@ -2,6 +2,14 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 
+interface ThemeConfigItem {
+    id: string;
+    name: string;
+    previewStyle?: Record<string, string>;
+    contentStyle?: Record<string, string>;
+    contentCss?: string;
+}
+
 class BlogView{
     context: vscode.ExtensionContext;
     view: vscode.WebviewPanel;
@@ -49,6 +57,7 @@ class BlogView{
     initialize() {
         this.initializeWebviewHtml();
         this.registerDisposables();
+        this.pushThemeConfigs();
     }
     initializeWebviewHtml() {
         let loadingScriptHtml: string[] = [];
@@ -76,6 +85,16 @@ class BlogView{
             null,
             this.context.subscriptions
         );
+
+        vscode.workspace.onDidChangeConfiguration(
+            (event: vscode.ConfigurationChangeEvent) => {
+                if (event.affectsConfiguration("mdbp.themeConfigFiles")) {
+                    this.pushThemeConfigs();
+                }
+            },
+            null,
+            this.context.subscriptions
+        );
     }
     getHtmlAssetPath(filename: string) {
         return path.join(this.context.extensionPath, "html", filename);
@@ -89,6 +108,8 @@ class BlogView{
         if (editingEditor.document.languageId !== "markdown") {
             return;
         }
+
+        this.pushThemeConfigs();
 
         // 更新当前编辑的文件
         this.currentEditingFilePath = editingEditor.document.fileName;
@@ -142,6 +163,93 @@ class BlogView{
         this.view.webview.postMessage({
             command: "renderMarkdown", data: data
         });
+    }
+
+    pushThemeConfigs() {
+        const themes = this.loadThemeConfigs();
+        this.view.webview.postMessage({
+            command: "updateThemes",
+            data: themes
+        });
+    }
+
+    loadThemeConfigs(): ThemeConfigItem[] {
+        const configuration = vscode.workspace.getConfiguration("mdbp");
+        const configuredFiles = configuration.get<string[]>("themeConfigFiles", []);
+        if (!configuredFiles || configuredFiles.length === 0) {
+            return [];
+        }
+
+        const themes: ThemeConfigItem[] = [];
+        configuredFiles.forEach((itemPath, index) => {
+            if (!itemPath || !itemPath.trim()) {
+                return;
+            }
+
+            const absolutePath = this.resolveThemeConfigPath(itemPath.trim());
+            if (!absolutePath || !fs.existsSync(absolutePath)) {
+                return;
+            }
+
+            try {
+                const raw = fs.readFileSync(absolutePath, "utf-8");
+                const parsed = JSON.parse(raw) as Record<string, unknown>;
+                const theme = this.normalizeThemeConfig(parsed, index);
+                if (theme) {
+                    themes.push(theme);
+                }
+            } catch {
+                return;
+            }
+        });
+
+        return themes;
+    }
+
+    resolveThemeConfigPath(inputPath: string): string | undefined {
+        if (path.isAbsolute(inputPath)) {
+            return inputPath;
+        }
+
+        if (!this.currentWorkspacePath) {
+            return undefined;
+        }
+
+        return path.join(this.currentWorkspacePath, inputPath);
+    }
+
+    normalizeThemeConfig(config: Record<string, unknown>, index: number): ThemeConfigItem | undefined {
+        const name = typeof config.name === "string" && config.name.trim()
+            ? config.name.trim()
+            : `主题 ${index + 1}`;
+
+        const previewStyle = this.normalizeStyleMap(config.previewStyle);
+        const contentStyle = this.normalizeStyleMap(config.contentStyle);
+        const contentCss = typeof config.contentCss === "string" ? config.contentCss : undefined;
+
+        return {
+            id: `user-theme-${index + 1}`,
+            name,
+            previewStyle,
+            contentStyle,
+            contentCss
+        };
+    }
+
+    normalizeStyleMap(value: unknown): Record<string, string> | undefined {
+        if (!value || typeof value !== "object") {
+            return undefined;
+        }
+
+        const styleMap: Record<string, string> = {};
+        Object.entries(value as Record<string, unknown>).forEach(([key, styleValue]) => {
+            if (!key || typeof styleValue !== "string") {
+                return;
+            }
+            styleMap[key] = styleValue;
+        });
+
+        return Object.keys(styleMap).length > 0 ? styleMap : undefined;
     }
     scrollPreview(percentage :number) {
         if (this.isApplyingWebviewScroll) {

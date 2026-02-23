@@ -34,6 +34,9 @@
     "Formatters"
   ],
   "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:mdbp.showView"
+  ],
   "contributes": {
     "commands": [
       {

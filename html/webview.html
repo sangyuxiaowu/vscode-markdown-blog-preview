@@ -107,13 +107,21 @@
 <div class="settings">
     <div class="settings-body">
         <div class="settings-item">
-            <label>字体</label>
+            <label>字号</label>
             <select title="选择字体大小" id="font-size" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
                 tabindex="-1" data-focusable="true">
                 <option value="14" style="font-size: 14px;">14px 稍小</option>
                 <option value="15" style="font-size: 15px;" selected>15px 默认</option>
                 <option value="16" style="font-size: 16px;">16px 稍大</option>
                 <option value="17" style="font-size: 17px;">17px 很大</option>
+            </select>
+        </div>
+        <div class="settings-item">
+            <label>字体</label>
+            <select id="font-family" title="选择字体" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                tabindex="-1" data-focusable="true">
+                <option value="sans" selected>无衬线</option>
+                <option value="serif">衬线</option>
             </select>
         </div>
         <div class="settings-item">
@@ -152,59 +160,43 @@
     const previewWrapper = document.getElementsByClassName("preview-wrapper")[0];
     const previewInfo = document.getElementsByClassName("preview")[0];
     const fontSizeSelect = document.getElementById("font-size");
+    const fontFamilySelect = document.getElementById("font-family");
     const themeSelect = document.getElementById("theme");
     const viewHost = document.getElementById("view-host");
     let syncingFromExtension = false;
     let latestMarkdownHtml = "";
+    let latestRenderedInlineHtml = "";
     let currentThemes = [];
     let selectedThemeId = "default";
+
+    const CONTENT_FONT_SANS = "-apple-system-font,BlinkMacSystemFont, Helvetica Neue, PingFang SC, Hiragino Sans GB , Microsoft YaHei UI , Microsoft YaHei ,Arial,sans-serif";
+    const CONTENT_FONT_SERIF = "Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, 'PingFang SC', Cambria, Cochin, Georgia, Times, 'Times New Roman', serif";
+    const FIXED_CODE_FONT = "Consolas, \"Liberation Mono\", Menlo, Courier, monospace";
 
     const shadowRoot = viewHost.attachShadow({ mode: "open" });
     const shadowStyle = document.createElement("style");
     shadowStyle.textContent = `
         :host { display: block; }
-        #view {
-            line-height: 1.75;
-            color: #333;
-            word-break: break-word;
-        }
-        #view img {
-            max-width: 100%;
-            height: auto;
-        }
-        #view pre {
-            overflow: auto;
-            padding: 12px;
-            background: #f7f7f7;
-            border-radius: 6px;
-        }
-        #view blockquote {
-            margin: 0;
-            padding-left: 12px;
-            border-left: 4px solid #ddd;
-            color: #666;
-        }
-        #view table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1em 0;
-        }
-        #view th, #view td {
-            border: 1px solid #e5e7eb;
-            padding: 8px 10px;
-            text-align: left;
-        }
+        #view { display: block; }
     `;
-    const shadowThemeStyle = document.createElement("style");
     const shadowView = document.createElement("div");
     shadowView.id = "view";
-    shadowRoot.append(shadowStyle, shadowThemeStyle, shadowView);
+    shadowRoot.append(shadowStyle, shadowView);
 
     const defaultPreviewStyle = {
         width: "375px",
         background: "#fff",
         padding: "20px",
         boxShadow: "0 0 60px rgb(0 0 0 / 10%)"
+    };
+
+    const defaultInlineCodeStyle = {
+        padding: "2px 6px",
+        margin: "0 2px",
+        color: "#c7254e",
+        background: "#f9f2f4",
+        borderRadius: "4px",
+        fontSize: "0.92em"
     };
 
     function findThemeById(themeId) {
@@ -240,14 +232,97 @@
         const previewStyle = Object.assign({}, defaultPreviewStyle, normalizeStyleObject(theme?.previewStyle));
         Object.assign(previewInfo.style, previewStyle);
 
-        const contentStyleCss = styleObjectToCss(theme?.contentStyle);
-        const customCss = typeof theme?.contentCss === "string" ? theme.contentCss : "";
-        shadowThemeStyle.textContent = `
-            #view { ${contentStyleCss} }
-            ${customCss}
-        `;
-
         applyFontSize(fontSizeSelect.value);
+    }
+
+    function appendInlineStyle(target, styleText) {
+        if (!styleText) {
+            return;
+        }
+        const current = target.getAttribute("style") || "";
+        target.setAttribute("style", `${current} ${styleText}`.trim());
+    }
+
+    function applyStyleMap(target, style) {
+        const cssText = styleObjectToCss(style);
+        appendInlineStyle(target, cssText);
+    }
+
+    function getSelectedFontFamily() {
+        return fontFamilySelect.value === "serif" ? CONTENT_FONT_SERIF : CONTENT_FONT_SANS;
+    }
+
+    function applyBaseInlineStyles(root) {
+        root.querySelectorAll("*").forEach((node) => {
+            appendInlineStyle(node, "word-break: break-word;");
+        });
+
+        root.querySelectorAll("img").forEach((img) => {
+            appendInlineStyle(img, "max-width: 100%; height: auto;");
+        });
+        root.querySelectorAll("table").forEach((table) => {
+            appendInlineStyle(table, "width: 100%; border-collapse: collapse; margin: 1em 0;");
+        });
+        root.querySelectorAll("th, td").forEach((cell) => {
+            appendInlineStyle(cell, "border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left;");
+        });
+        root.querySelectorAll("blockquote").forEach((blockquote) => {
+            appendInlineStyle(blockquote, "margin: 0.9em 0; padding: 0.25em 0 0.25em 0.9em; border-left: 4px solid #d0d7de; color: #57606a; background: #f6f8fa;");
+        });
+        root.querySelectorAll("pre").forEach((pre) => {
+            appendInlineStyle(pre, "overflow: auto;");
+        });
+    }
+
+    function applyInlineThemeAndTypography(container) {
+        const theme = findThemeById(selectedThemeId);
+        const rootFontFamily = getSelectedFontFamily();
+
+        const root = document.createElement("div");
+        root.innerHTML = container.innerHTML;
+
+        root.querySelectorAll("style, script").forEach((node) => {
+            node.remove();
+        });
+
+        appendInlineStyle(root, `font-family: ${rootFontFamily};`);
+        appendInlineStyle(root, `font-size: ${fontSizeSelect.value}px;`);
+        appendInlineStyle(root, "line-height: 1.8;");
+        appendInlineStyle(root, "color: #2f2f2f;");
+        appendInlineStyle(root, "word-break: break-word;");
+        applyStyleMap(root, theme?.contentStyle);
+
+        applyBaseInlineStyles(root);
+
+        root.querySelectorAll("p, li, blockquote, td, th").forEach((node) => {
+            appendInlineStyle(node, `font-family: ${rootFontFamily};`);
+            appendInlineStyle(node, `font-size: ${fontSizeSelect.value}px;`);
+        });
+
+        root.querySelectorAll("h1, h2, h3, h4, h5, h6, a, strong, em").forEach((node) => {
+            appendInlineStyle(node, `font-family: ${rootFontFamily};`);
+        });
+
+        const elementStyles = theme?.elementStyles;
+        if (elementStyles && typeof elementStyles === "object") {
+            Object.entries(elementStyles).forEach(([selector, styleMap]) => {
+                if (!selector) {
+                    return;
+                }
+                root.querySelectorAll(selector).forEach((node) => {
+                    applyStyleMap(node, styleMap);
+                });
+            });
+        }
+
+        root.querySelectorAll("pre > code").forEach((code) => {
+            appendInlineStyle(code, `font-family: ${FIXED_CODE_FONT};`);
+        });
+        root.querySelectorAll("code:not(pre > code)").forEach((code) => {
+            appendInlineStyle(code, `font-family: ${FIXED_CODE_FONT};`);
+        });
+
+        return root;
     }
 
     function setThemeOptions(themes) {
@@ -270,18 +345,25 @@
         }
         themeSelect.value = selectedThemeId;
         applyTheme(selectedThemeId);
+        if (latestMarkdownHtml) {
+            renderMarkdownToPreview(latestMarkdownHtml);
+        }
     }
 
     function applyFontSize(fontSize) {
         const parsed = Number(fontSize);
-        if (!Number.isNaN(parsed) && parsed > 0) {
-            previewInfo.style.fontSize = `${parsed}px`;
+        if (Number.isNaN(parsed) || parsed <= 0) {
+            return;
+        }
+        if (latestMarkdownHtml) {
+            renderMarkdownToPreview(latestMarkdownHtml);
         }
     }
 
     function applyWechatCodeBlockFormat(rawHtml) {
         const container = document.createElement("div");
         container.innerHTML = rawHtml;
+        const theme = findThemeById(selectedThemeId);
 
         const blockCodes = container.querySelectorAll("pre > code");
         blockCodes.forEach(code => {
@@ -296,29 +378,35 @@
             );
             code.setAttribute(
                 "style",
-                "display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; white-space: pre; font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;"
+                `display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; white-space: pre; font-family: ${FIXED_CODE_FONT};`
             );
         });
 
         const inlineCodes = container.querySelectorAll("code:not(pre > code)");
+        const inlineCodeStyle = Object.assign({}, defaultInlineCodeStyle, normalizeStyleObject(theme?.inlineCodeStyle));
+        const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
         inlineCodes.forEach(code => {
             code.setAttribute(
                 "style",
-                "padding: 2px 6px; margin: 0 2px; color: #c7254e; background: #f9f2f4; border-radius: 4px; font-size: 0.92em; font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;"
+                `${inlineCodeStyleText} font-family: ${FIXED_CODE_FONT};`
             );
         });
 
-        return container.innerHTML;
+        return container;
     }
 
     function renderMarkdownToPreview(rawHtml) {
         if (!rawHtml) {
             shadowView.innerHTML = "";
+            latestRenderedInlineHtml = "";
             return;
         }
 
-        const html = applyWechatCodeBlockFormat(rawHtml);
-        shadowView.innerHTML = html;
+        const container = applyWechatCodeBlockFormat(rawHtml);
+        const resultRoot = applyInlineThemeAndTypography(container);
+        latestRenderedInlineHtml = resultRoot.innerHTML;
+        shadowView.innerHTML = "";
+        shadowView.appendChild(resultRoot);
     }
 
     applyTheme("default");
@@ -326,6 +414,10 @@
 
     fontSizeSelect.addEventListener("change", () => {
         applyFontSize(fontSizeSelect.value);
+    });
+
+    fontFamilySelect.addEventListener("change", () => {
+        renderMarkdownToPreview(latestMarkdownHtml);
     });
 
     themeSelect.addEventListener("change", () => {
@@ -357,7 +449,7 @@
         }
     });
     async function copyPreviewContent() {
-        const html = shadowView.innerHTML;
+        const html = latestRenderedInlineHtml || shadowView.innerHTML;
         const plainText = shadowView.textContent || "";
 
         if (!html || !html.trim()) {

@@ -7,6 +7,8 @@ interface ThemeConfigItem {
     name: string;
     previewStyle?: Record<string, string>;
     contentStyle?: Record<string, string>;
+    elementStyles?: Record<string, Record<string, string>>;
+    inlineCodeStyle?: Record<string, string>;
     contentCss?: string;
 }
 
@@ -211,11 +213,19 @@ class BlogView{
             return inputPath;
         }
 
-        if (!this.currentWorkspacePath) {
-            return undefined;
+        if (this.currentWorkspacePath) {
+            const workspaceFile = path.join(this.currentWorkspacePath, inputPath);
+            if (fs.existsSync(workspaceFile)) {
+                return workspaceFile;
+            }
         }
 
-        return path.join(this.currentWorkspacePath, inputPath);
+        const extensionFile = path.join(this.context.extensionPath, inputPath);
+        if (fs.existsSync(extensionFile)) {
+            return extensionFile;
+        }
+
+        return undefined;
     }
 
     normalizeThemeConfig(config: Record<string, unknown>, index: number): ThemeConfigItem | undefined {
@@ -225,6 +235,8 @@ class BlogView{
 
         const previewStyle = this.normalizeStyleMap(config.previewStyle);
         const contentStyle = this.normalizeStyleMap(config.contentStyle);
+        const elementStyles = this.normalizeNestedStyleMap(config.elementStyles);
+        const inlineCodeStyle = this.normalizeStyleMap(config.inlineCodeStyle);
         const contentCss = typeof config.contentCss === "string" ? config.contentCss : undefined;
 
         return {
@@ -232,6 +244,8 @@ class BlogView{
             name,
             previewStyle,
             contentStyle,
+            elementStyles,
+            inlineCodeStyle,
             contentCss
         };
     }
@@ -250,6 +264,25 @@ class BlogView{
         });
 
         return Object.keys(styleMap).length > 0 ? styleMap : undefined;
+    }
+
+    normalizeNestedStyleMap(value: unknown): Record<string, Record<string, string>> | undefined {
+        if (!value || typeof value !== "object") {
+            return undefined;
+        }
+
+        const result: Record<string, Record<string, string>> = {};
+        Object.entries(value as Record<string, unknown>).forEach(([selector, styleObject]) => {
+            if (!selector) {
+                return;
+            }
+            const normalized = this.normalizeStyleMap(styleObject);
+            if (normalized) {
+                result[selector] = normalized;
+            }
+        });
+
+        return Object.keys(result).length > 0 ? result : undefined;
     }
     scrollPreview(percentage :number) {
         if (this.isApplyingWebviewScroll) {

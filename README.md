@@ -43,7 +43,20 @@
 		"line-height": "1.9",
 		"color": "#2f2f2f"
 	},
-	"contentCss": "#view h1 { font-size: 26px; } #view p { margin: 0.9em 0; }"
+	"elementStyles": {
+		"h1": {
+			"font-size": "26px"
+		},
+		"p": {
+			"margin": "0.9em 0"
+		}
+	},
+	"inlineCodeStyle": {
+		"color": "#0f172a",
+		"background": "#e2e8f0",
+		"borderRadius": "4px",
+		"padding": "2px 6px"
+	}
 }
 ```
 

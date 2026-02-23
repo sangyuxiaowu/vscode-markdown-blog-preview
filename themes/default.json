@@ -11,5 +11,66 @@
     "color": "#2f2f2f",
     "font-size": "15px"
   },
-  "contentCss": "#view h1 { font-size: 1.7em; } #view h2 { font-size: 1.45em; } #view h3 { font-size: 1.2em; } #view h1, #view h2, #view h3 { line-height: 1.35; margin: 1.15em 0 0.62em; font-weight: 700; } #view p { margin: 0.88em 0; } #view ul, #view ol { padding-left: 1.5em; margin: 0.85em 0; } #view li { margin: 0.25em 0; } #view blockquote { margin: 0.9em 0; padding: 0.25em 0 0.25em 0.9em; border-left: 4px solid #d0d7de; color: #57606a; background: #f6f8fa; } #view table { width: 100%; border-collapse: collapse; margin: 1em 0; } #view th, #view td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; } #view th { background: #f8fafc; font-weight: 600; } #view a { color: #0969da; text-decoration: none; } #view a:hover { text-decoration: underline; }"
+  "elementStyles": {
+    "h1": {
+      "font-size": "1.7em",
+      "line-height": "1.35",
+      "margin": "1.15em 0 0.62em",
+      "font-weight": "700"
+    },
+    "h2": {
+      "font-size": "1.45em",
+      "line-height": "1.35",
+      "margin": "1.15em 0 0.62em",
+      "font-weight": "700"
+    },
+    "h3": {
+      "font-size": "1.2em",
+      "line-height": "1.35",
+      "margin": "1.15em 0 0.62em",
+      "font-weight": "700"
+    },
+    "p": {
+      "margin": "0.88em 0"
+    },
+    "ul": {
+      "padding-left": "1.5em",
+      "margin": "0.85em 0"
+    },
+    "ol": {
+      "padding-left": "1.5em",
+      "margin": "0.85em 0"
+    },
+    "li": {
+      "margin": "0.25em 0"
+    },
+    "blockquote": {
+      "margin": "0.9em 0",
+      "padding": "0.25em 0 0.25em 0.9em",
+      "border-left": "4px solid #d0d7de",
+      "color": "#57606a",
+      "background": "#f6f8fa"
+    },
+    "table": {
+      "width": "100%",
+      "border-collapse": "collapse",
+      "margin": "1em 0"
+    },
+    "th": {
+      "border": "1px solid #e5e7eb",
+      "padding": "8px 10px",
+      "text-align": "left",
+      "background": "#f8fafc",
+      "font-weight": "600"
+    },
+    "td": {
+      "border": "1px solid #e5e7eb",
+      "padding": "8px 10px",
+      "text-align": "left"
+    },
+    "a": {
+      "color": "#0969da",
+      "text-decoration": "none"
+    }
+  }
 }

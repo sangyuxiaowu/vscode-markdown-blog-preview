@@ -12,34 +12,52 @@
     <!-- 用于样式确认，方便查看，发布时移除 -->
     <link rel="stylesheet" type="text/css" href="workbench.desktop.main.css">
     <style>
+        :root {
+            --settings-height: 52px;
+        }
+
+        body {
+            margin: 0;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+            overflow: hidden;
+        }
+
         select.monaco-select-box {
             background-color: var(--vscode-dropdown-background);
             color: var(--vscode-dropdown-foreground);
             border-color: var(--vscode-dropdown-border);
             width: 90px;
         }
-        label{
+
+        label {
             margin: 0 5px;
             font-weight: bold;
             font-size: 14px;
         }
-        .monaco-button{
+
+        .monaco-button {
             color: var(--vscode-button-foreground);
             background-color: var(--vscode-button-background);
         }
-        .monaco-button:hover{
+
+        .monaco-button:hover {
             color: var(--vscode-button-foreground);
             background-color: var(--vscode-button-hoverBackground);
         }
 
-
-        .settings{
+        .settings {
             position: fixed;
+            left: 0;
+            right: 0;
             width: 100%;
             top: 0;
+            z-index: 10;
+            background: var(--vscode-editor-background);
             border-bottom: inset 1px rgb(0 0 0 / 10%);
         }
-        .settings .monaco-button{
+
+        .settings .monaco-button {
             width: 95%;
             margin: 0 auto;
         }
@@ -51,25 +69,34 @@
 
         .settings-item {
             flex: 1;
+            display: flex;
             align-items: center;
         }
 
-        .preview-wrapper{
+        .preview-wrapper {
             justify-content: center;
             display: flex;
-            overflow: scroll;
-            margin-top: 45px;
-            height: calc(100vh - 30px);
+            overflow-y: auto;
+            overflow-x: auto;
+            margin-top: var(--settings-height);
+            height: calc(100vh - var(--settings-height));
+            padding: 20px;
+            box-sizing: border-box;
         }
-        .preview{
+
+        .preview {
             margin: 0 auto;
             min-height: 100px;
             width: 375px;
             padding: 20px;
             font-size: 14px;
-            outline: none;
             box-shadow: 0 0 60px rgb(0 0 0 / 10%);
             background: #fff;
+            overflow-wrap: anywhere;
+        }
+
+        #view-host {
+            width: 100%;
         }
     </style>
     <insert-vscode-resource />
@@ -99,7 +126,7 @@
         </div>
         <div class="settings-item">
             <label>主题</label>
-            <select title="选择主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+            <select id="theme" title="选择主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
                 tabindex="-1" data-focusable="true">
                 <option value="0">默认</option>
                 <option value="15">自定义</option>
@@ -118,8 +145,8 @@
 
     <div class="preview-wrapper">
         <section>
-        <div contenteditable="true" class="preview">
-            <div id="view">
+        <div class="preview">
+            <div id="view-host">
 
             </div>
         </div>
@@ -134,7 +161,38 @@
     const previewInfo = document.getElementsByClassName("preview")[0];
     const platformSelect = document.getElementById("platform");
     const fontSizeSelect = document.getElementById("font-size");
+    const viewHost = document.getElementById("view-host");
     let syncingFromExtension = false;
+
+    const shadowRoot = viewHost.attachShadow({ mode: "open" });
+    const shadowStyle = document.createElement("style");
+    shadowStyle.textContent = `
+        :host { display: block; }
+        #view {
+            line-height: 1.75;
+            color: #333;
+            word-break: break-word;
+        }
+        #view img {
+            max-width: 100%;
+            height: auto;
+        }
+        #view pre {
+            overflow: auto;
+            padding: 12px;
+            background: #f7f7f7;
+            border-radius: 6px;
+        }
+        #view blockquote {
+            margin: 0;
+            padding-left: 12px;
+            border-left: 4px solid #ddd;
+            color: #666;
+        }
+    `;
+    const shadowView = document.createElement("div");
+    shadowView.id = "view";
+    shadowRoot.append(shadowStyle, shadowView);
 
     function applyPlatformWidth(platform) {
         previewInfo.style.width = platform === "bilibili" ? "680px" : "375px";
@@ -171,24 +229,65 @@
             }
 
             case "renderMarkdown": {
-                document.getElementById("view").innerHTML = message.data
+                shadowView.innerHTML = message.data;
                 break;
             }
         }
     });
-    // 点击复制富文本信息到剪贴板
-    document.getElementById("copy").addEventListener("click", () => {
-        const range = document.createRange();
-        range.selectNode(document.getElementById("view"));
+    async function copyPreviewContent() {
+        const html = shadowView.innerHTML;
+        const plainText = shadowView.textContent || "";
+
+        if (!html || !html.trim()) {
+            return false;
+        }
+
+        if (navigator.clipboard && window.ClipboardItem) {
+            try {
+                const item = new ClipboardItem({
+                    "text/html": new Blob([html], { type: "text/html" }),
+                    "text/plain": new Blob([plainText], { type: "text/plain" })
+                });
+                await navigator.clipboard.write([item]);
+                return true;
+            } catch {
+            }
+        }
+
+        const temp = document.createElement("div");
+        temp.setAttribute("contenteditable", "true");
+        temp.style.position = "fixed";
+        temp.style.left = "-99999px";
+        temp.style.top = "0";
+        temp.innerHTML = html;
+        document.body.appendChild(temp);
+
         const selection = window.getSelection();
-        if (selection.rangeCount > 0) selection.removeAllRanges();
-        selection.addRange(range);
-        document.execCommand("copy");
+        const range = document.createRange();
+        range.selectNodeContents(temp);
+
+        if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        const copied = document.execCommand("copy");
+
+        if (selection) {
+            selection.removeAllRanges();
+        }
+        document.body.removeChild(temp);
+        return copied;
+    }
+
+    // 点击复制富文本信息到剪贴板
+    document.getElementById("copy").addEventListener("click", async () => {
+        const copied = await copyPreviewContent();
         vscode.postMessage({
             command: "msg",
             data: {
-                type: "success",
-                message: "复制成功"
+                type: copied ? "success" : "warning",
+                message: copied ? "复制成功" : "复制失败"
             }
         });
     });
@@ -200,7 +299,11 @@
         const scrollTop = previewWrapper.scrollTop;
         const scrollHeight = previewWrapper.scrollHeight;
         const clientHeight = previewWrapper.clientHeight;
-        const scrollPercent = scrollTop / (scrollHeight - clientHeight);
+        const denominator = scrollHeight - clientHeight;
+        if (denominator <= 0) {
+            return;
+        }
+        const scrollPercent = scrollTop / denominator;
         vscode.postMessage({
             command: "scroll",
             data: scrollPercent

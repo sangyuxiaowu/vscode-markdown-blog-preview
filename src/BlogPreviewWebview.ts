@@ -98,7 +98,13 @@ class BlogView{
 
         // 转换 md 为 html
         const showdown = require("showdown");
-        const converter = new showdown.Converter();
+        const converter = new showdown.Converter({
+            ghCompatibleHeaderId: true,
+            simpleLineBreaks: true,
+            strikethrough: true,
+            tables: true,
+            tasklists: true
+        });
         data = converter.makeHtml(data);
 
         // 这里的  data 是 html, 判断 data 中的 img 是否是本地的图片，

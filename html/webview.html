@@ -107,14 +107,6 @@
 <div class="settings">
     <div class="settings-body">
         <div class="settings-item">
-            <label>平台</label>
-            <select title="选择预览平台" id="platform" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                tabindex="-1" data-focusable="true">
-                <option value="wechat">微信公众号</option>
-                <option value="bilibili">哔哩哔哩</option>
-            </select>
-        </div>
-        <div class="settings-item">
             <label>字体</label>
             <select title="选择字体大小" id="font-size" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
                 tabindex="-1" data-focusable="true">
@@ -159,10 +151,10 @@
     const vscode = acquireVsCodeApi();
     const previewWrapper = document.getElementsByClassName("preview-wrapper")[0];
     const previewInfo = document.getElementsByClassName("preview")[0];
-    const platformSelect = document.getElementById("platform");
     const fontSizeSelect = document.getElementById("font-size");
     const viewHost = document.getElementById("view-host");
     let syncingFromExtension = false;
+    let latestMarkdownHtml = "";
 
     const shadowRoot = viewHost.attachShadow({ mode: "open" });
     const shadowStyle = document.createElement("style");
@@ -194,10 +186,6 @@
     shadowView.id = "view";
     shadowRoot.append(shadowStyle, shadowView);
 
-    function applyPlatformWidth(platform) {
-        previewInfo.style.width = platform === "bilibili" ? "680px" : "375px";
-    }
-
     function applyFontSize(fontSize) {
         const parsed = Number(fontSize);
         if (!Number.isNaN(parsed) && parsed > 0) {
@@ -205,12 +193,50 @@
         }
     }
 
-    applyPlatformWidth(platformSelect.value);
-    applyFontSize(fontSizeSelect.value);
+    function applyWechatCodeBlockFormat(rawHtml) {
+        const container = document.createElement("div");
+        container.innerHTML = rawHtml;
 
-    platformSelect.addEventListener("change", () => {
-        applyPlatformWidth(platformSelect.value);
-    });
+        const blockCodes = container.querySelectorAll("pre > code");
+        blockCodes.forEach(code => {
+            const pre = code.parentElement;
+            if (!pre) {
+                return;
+            }
+
+            pre.setAttribute(
+                "style",
+                "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;"
+            );
+            code.setAttribute(
+                "style",
+                "display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; white-space: pre; font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;"
+            );
+        });
+
+        const inlineCodes = container.querySelectorAll("code:not(pre > code)");
+        inlineCodes.forEach(code => {
+            code.setAttribute(
+                "style",
+                "padding: 2px 6px; margin: 0 2px; color: #c7254e; background: #f9f2f4; border-radius: 4px; font-size: 0.92em; font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;"
+            );
+        });
+
+        return container.innerHTML;
+    }
+
+    function renderMarkdownToPreview(rawHtml) {
+        if (!rawHtml) {
+            shadowView.innerHTML = "";
+            return;
+        }
+
+        const html = applyWechatCodeBlockFormat(rawHtml);
+        shadowView.innerHTML = html;
+    }
+
+    previewInfo.style.width = "375px";
+    applyFontSize(fontSizeSelect.value);
 
     fontSizeSelect.addEventListener("change", () => {
         applyFontSize(fontSizeSelect.value);
@@ -229,7 +255,8 @@
             }
 
             case "renderMarkdown": {
-                shadowView.innerHTML = message.data;
+                latestMarkdownHtml = message.data || "";
+                renderMarkdownToPreview(latestMarkdownHtml);
                 break;
             }
         }

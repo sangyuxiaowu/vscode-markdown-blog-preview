@@ -45,3 +45,15 @@
 * Reduce the extension size and improve the startup time by [bundling your extension](https://code.visualstudio.com/api/working-with-extensions/bundling-extension).
 * [Publish your extension](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) on the VS Code extension marketplace.
 * Automate builds by setting up [Continuous Integration](https://code.visualstudio.com/api/working-with-extensions/continuous-integration).
+
+## 开发环境要求
+
+- VS Code: `>= 1.109`
+- Node.js: `>= 18`（由新版测试依赖链要求）
+- 包管理器：建议使用 `cnpm`
+
+## 常用命令
+
+- `cnpm install`
+- `cnpm test`
+- `cnpm run watch`

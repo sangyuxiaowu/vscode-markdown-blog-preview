@@ -1,13 +1,36 @@
 {
   "name": "markdown-blog-preview",
   "displayName": "Markdown Blog Preview",
-  "description": "Markdown 转换微信公众号文章。Render markdown as inline html, and provide a variety of exquisite styles to facilitate publishing articles.",
+  "description": "Markdown 文章排版神器，多平台支持，可定制 JSON 主题，实时查看效果。",
   "version": "0.0.1",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sangyuxiaowu/vscode-markdown-blog-preview.git"
+  },
+  "homepage": "https://github.com/sangyuxiaowu/vscode-markdown-blog-preview#readme",
+  "bugs": {
+    "url": "https://github.com/sangyuxiaowu/vscode-markdown-blog-preview/issues"
+  },
+  "keywords": [
+    "markdown",
+    "markdown preview",
+    "wechat",
+    "微信公众号",
+    "公众号排版",
+    "blog",
+    "博客",
+    "文章",
+    "排版",
+    "写作",
+    "vscode"
+  ],
   "engines": {
     "vscode": "^1.109.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Formatters"
   ],
   "main": "./dist/extension.js",
   "contributes": {

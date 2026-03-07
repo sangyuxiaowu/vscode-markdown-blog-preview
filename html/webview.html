@@ -129,6 +129,12 @@
             </select>
         </div>
         <div class="settings-item">
+            <label>
+                <input id="convert-links-to-references" type="checkbox">
+                外链转引用
+            </label>
+        </div>
+        <div class="settings-item">
             <a class="monaco-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
                 <div class="monaco-button-label">复制</div>
             </a>
@@ -158,12 +164,17 @@
     const fontSizeSelect = document.getElementById("font-size");
     const fontFamilySelect = document.getElementById("font-family");
     const themeSelect = document.getElementById("theme");
+    const linkReferenceCheckbox = document.getElementById("convert-links-to-references");
     const viewHost = document.getElementById("view-host");
+    const initialState = vscode.getState() || {};
     let syncingFromExtension = false;
     let latestMarkdownHtml = "";
     let latestRenderedInlineHtml = "";
     let currentThemes = [];
     let selectedThemeId = "default";
+    let linkReferenceOverrides = initialState.linkReferenceOverrides && typeof initialState.linkReferenceOverrides === "object"
+        ? initialState.linkReferenceOverrides
+        : {};
 
     const CONTENT_FONT_SANS = "-apple-system-font,BlinkMacSystemFont, Helvetica Neue, PingFang SC, Hiragino Sans GB , Microsoft YaHei UI , Microsoft YaHei ,Arial,sans-serif";
     const CONTENT_FONT_SERIF = "Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, 'PingFang SC', Cambria, Cochin, Georgia, Times, 'Times New Roman', serif";
@@ -197,6 +208,30 @@
 
     function findThemeById(themeId) {
         return currentThemes.find(theme => theme.id === themeId);
+    }
+
+    function updateWebviewState() {
+        vscode.setState({
+            linkReferenceOverrides
+        });
+    }
+
+    function shouldAutoEnableLinkReferences(themeId) {
+        const theme = findThemeById(themeId);
+        const themeName = typeof theme?.name === "string" ? theme.name : "";
+        return themeName.includes("微信");
+    }
+
+    function getLinkReferenceEnabled(themeId) {
+        if (Object.prototype.hasOwnProperty.call(linkReferenceOverrides, themeId)) {
+            return Boolean(linkReferenceOverrides[themeId]);
+        }
+
+        return shouldAutoEnableLinkReferences(themeId);
+    }
+
+    function syncLinkReferenceCheckbox(themeId) {
+        linkReferenceCheckbox.checked = getLinkReferenceEnabled(themeId);
     }
 
     function normalizeStyleObject(style) {
@@ -309,6 +344,12 @@
                     applyStyleMap(node, styleMap);
                 });
             });
+
+            if (elementStyles.a) {
+                root.querySelectorAll("[data-mdbp-link-text]").forEach((node) => {
+                    applyStyleMap(node, elementStyles.a);
+                });
+            }
         }
 
         root.querySelectorAll("pre > code").forEach((code) => {
@@ -346,6 +387,7 @@
         }
         themeSelect.value = selectedThemeId;
         applyTheme(selectedThemeId);
+        syncLinkReferenceCheckbox(selectedThemeId);
         if (latestMarkdownHtml) {
             renderMarkdownToPreview(latestMarkdownHtml);
         }
@@ -361,10 +403,118 @@
         }
     }
 
+    function isExternalHttpLink(href) {
+        try {
+            const parsedUrl = new URL(href);
+            return parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
+        } catch {
+            return false;
+        }
+    }
+
+    function shouldConvertLink(anchor) {
+        const href = (anchor.getAttribute("href") || "").trim();
+        if (!href || !isExternalHttpLink(href)) {
+            return false;
+        }
+
+        try {
+            const parsedUrl = new URL(href);
+            if (parsedUrl.hostname.toLowerCase() === "mp.weixin.qq.com") {
+                return false;
+            }
+        } catch {
+            return false;
+        }
+
+        const linkText = (anchor.textContent || "").replace(/\s+/g, " ").trim();
+        return Boolean(linkText) && linkText !== href;
+    }
+
+    function convertExternalLinksToReferences(container) {
+        if (!linkReferenceCheckbox.checked) {
+            return;
+        }
+
+        const references = [];
+        const referenceIndexByHref = new Map();
+        const anchors = Array.from(container.querySelectorAll("a[href]"));
+        anchors.forEach((anchor) => {
+            if (!shouldConvertLink(anchor)) {
+                return;
+            }
+
+            const href = (anchor.getAttribute("href") || "").trim();
+            const linkText = (anchor.textContent || "").replace(/\s+/g, " ").trim();
+            let referenceIndex = referenceIndexByHref.get(href);
+            if (!referenceIndex) {
+                referenceIndex = references.length + 1;
+                referenceIndexByHref.set(href, referenceIndex);
+                references.push({
+                    index: referenceIndex,
+                    text: linkText,
+                    href
+                });
+            }
+
+            const fragment = document.createDocumentFragment();
+            const linkTextWrapper = document.createElement("span");
+            linkTextWrapper.setAttribute("data-mdbp-link-text", "");
+            while (anchor.firstChild) {
+                linkTextWrapper.appendChild(anchor.firstChild);
+            }
+            fragment.appendChild(linkTextWrapper);
+
+            const sup = document.createElement("sup");
+            sup.textContent = `[${referenceIndex}]`;
+            sup.setAttribute("data-mdbp-ref-sup", "");
+            linkTextWrapper.appendChild(sup);
+            anchor.replaceWith(fragment);
+        });
+
+        if (references.length === 0) {
+            return;
+        }
+
+        const section = document.createElement("section");
+        section.setAttribute("data-mdbp-references", "");
+
+        const title = document.createElement("h3");
+        title.textContent = "References";
+        title.setAttribute("data-mdbp-references-title", "");
+        section.appendChild(title);
+
+        const paragraph = document.createElement("p");
+        paragraph.setAttribute("data-mdbp-references-list", "");
+
+        references.forEach((reference, index) => {
+            const code = document.createElement("em");
+            code.textContent = `[${reference.index}]`;
+            code.setAttribute("data-mdbp-references-index", "");
+
+            const url = document.createElement("i");
+            url.textContent = reference.href;
+            url.setAttribute("data-mdbp-references-url", "");
+
+            paragraph.appendChild(code);
+            paragraph.appendChild(document.createTextNode(` ${reference.text}: `));
+            paragraph.appendChild(url);
+
+            if (index < references.length - 1) {
+                paragraph.appendChild(document.createElement("br"));
+            }
+        });
+
+        section.appendChild(paragraph);
+        container.appendChild(section);
+    }
+
     function applyWechatCodeBlockFormat(rawHtml) {
         const container = document.createElement("div");
         container.innerHTML = rawHtml;
         const theme = findThemeById(selectedThemeId);
+
+        convertExternalLinksToReferences(container);
 
         const images = container.querySelectorAll("img");
         images.forEach((img) => {
@@ -467,11 +617,18 @@
 
     themeSelect.addEventListener("change", () => {
         applyTheme(themeSelect.value);
+        syncLinkReferenceCheckbox(themeSelect.value);
         renderMarkdownToPreview(latestMarkdownHtml);
         vscode.postMessage({
             command: "selectTheme",
             data: themeSelect.value
         });
+    });
+
+    linkReferenceCheckbox.addEventListener("change", () => {
+        linkReferenceOverrides[selectedThemeId] = linkReferenceCheckbox.checked;
+        updateWebviewState();
+        renderMarkdownToPreview(latestMarkdownHtml);
     });
 
     window.addEventListener("message", event => {

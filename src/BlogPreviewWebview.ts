@@ -13,6 +13,7 @@ interface ThemeConfigItem {
 }
 
 const DEFAULT_THEME_RELATIVE_PATH = "themes/default.json";
+const SELECTED_THEME_STORAGE_KEY = "mdbp.selectedThemeId";
 
 class BlogView{
     context: vscode.ExtensionContext;
@@ -24,6 +25,7 @@ class BlogView{
     currentEditingFilePath: string = "";
     // 标记是否正在处理来自预览侧的滚动，避免双向同步抖动
     isApplyingWebviewScroll: boolean = false;
+    selectedThemeId: string = "default";
 
     configureWebviewScripts(webviewScripts: string[]) {
         //webviewScripts.push("libs/d3.js");
@@ -32,6 +34,7 @@ class BlogView{
 
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
+        this.selectedThemeId = context.workspaceState.get<string>(SELECTED_THEME_STORAGE_KEY, "default");
 
         // 获取当前工作目录或编辑文件的路径
         this.currentWorkspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || "";
@@ -171,9 +174,20 @@ class BlogView{
 
     pushThemeConfigs() {
         const themes = this.loadThemeConfigs();
+        const activeThemeId = themes.some(theme => theme.id === this.selectedThemeId)
+            ? this.selectedThemeId
+            : (themes[0]?.id ?? "default");
+
+        if (activeThemeId !== this.selectedThemeId) {
+            this.persistSelectedTheme(activeThemeId);
+        }
+
         this.view.webview.postMessage({
             command: "updateThemes",
-            data: themes
+            data: {
+                themes,
+                selectedThemeId: activeThemeId
+            }
         });
     }
 
@@ -205,7 +219,7 @@ class BlogView{
             try {
                 const raw = fs.readFileSync(absolutePath, "utf-8");
                 const parsed = JSON.parse(raw) as Record<string, unknown>;
-                const theme = this.normalizeThemeConfig(parsed, index);
+                const theme = this.normalizeThemeConfig(parsed, index, path.resolve(absolutePath));
                 if (theme) {
                     themes.push(theme);
                 }
@@ -265,7 +279,7 @@ class BlogView{
         return undefined;
     }
 
-    normalizeThemeConfig(config: Record<string, unknown>, index: number): ThemeConfigItem | undefined {
+    normalizeThemeConfig(config: Record<string, unknown>, index: number, themeId?: string): ThemeConfigItem | undefined {
         const name = typeof config.name === "string" && config.name.trim()
             ? config.name.trim()
             : `主题 ${index + 1}`;
@@ -277,7 +291,7 @@ class BlogView{
         const contentCss = typeof config.contentCss === "string" ? config.contentCss : undefined;
 
         return {
-            id: `user-theme-${index + 1}`,
+            id: themeId || `user-theme-${index + 1}`,
             name,
             previewStyle,
             contentStyle,
@@ -362,10 +376,20 @@ class BlogView{
             case "scroll":
                 this.scrollEdit(message.data);
                 break;
+            case "selectTheme":
+                if (typeof message.data === "string" && message.data.trim()) {
+                    this.persistSelectedTheme(message.data.trim());
+                }
+                break;
             case "msg":
                 this.showMessage(message.data.message, message.data.type);
                 break;
         }
+    }
+
+    persistSelectedTheme(themeId: string) {
+        this.selectedThemeId = themeId;
+        void this.context.workspaceState.update(SELECTED_THEME_STORAGE_KEY, themeId);
     }
 
     resolveLocalImagePath(imagePath: string, markdownFilePath: string): vscode.Uri | undefined {

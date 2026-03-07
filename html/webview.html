@@ -321,7 +321,7 @@
         return root;
     }
 
-    function setThemeOptions(themes) {
+    function setThemeOptions(themes, nextSelectedThemeId) {
         currentThemes = Array.isArray(themes) ? themes : [];
 
         if (currentThemes.length === 0) {
@@ -335,6 +335,10 @@
             option.textContent = theme.name;
             themeSelect.appendChild(option);
         });
+
+        if (typeof nextSelectedThemeId === "string" && nextSelectedThemeId) {
+            selectedThemeId = nextSelectedThemeId;
+        }
 
         const available = currentThemes.some(theme => theme.id === selectedThemeId);
         if (!available) {
@@ -464,6 +468,10 @@
     themeSelect.addEventListener("change", () => {
         applyTheme(themeSelect.value);
         renderMarkdownToPreview(latestMarkdownHtml);
+        vscode.postMessage({
+            command: "selectTheme",
+            data: themeSelect.value
+        });
     });
 
     window.addEventListener("message", event => {
@@ -484,7 +492,16 @@
                 break;
             }
             case "updateThemes": {
-                setThemeOptions(Array.isArray(message.data) ? message.data : []);
+                const payload = message.data;
+                if (Array.isArray(payload)) {
+                    setThemeOptions(payload);
+                    break;
+                }
+
+                setThemeOptions(
+                    Array.isArray(payload?.themes) ? payload.themes : [],
+                    typeof payload?.selectedThemeId === "string" ? payload.selectedThemeId : undefined
+                );
                 break;
             }
         }

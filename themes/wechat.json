@@ -105,9 +105,9 @@
 			"margin": "2em 8px 0.5em 8px"
 		},
 		"[data-mdbp-references-list]": {
-			"margin": "1.5em 8px",
+			"margin": "0.5em 8px",
 			"letter-spacing": "0.02em",
-			"font-size": "90%"
+			"font-size": "80%"
 		},
 		"[data-mdbp-references-index]": {
 			"font-size": "90%",

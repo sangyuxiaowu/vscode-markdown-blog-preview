@@ -72,6 +72,18 @@
             "type": "string"
           },
           "markdownDescription": "主题配置 JSON 文件路径列表（支持工作区相对路径与绝对路径）。例如：`[\"themes/wechat.json\", \"themes/minimal.json\"]`"
+        },
+        "mdbp.codeThemeConfigFiles": {
+          "type": "array",
+          "default": [
+            "themes/code-themes/github-light.json",
+            "themes/code-themes/monokai.json",
+            "themes/code-themes/vscode-dark.json"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "代码高亮主题 JSON 文件路径列表。保留页面中的“默认”选项时不会改写代码块；选择这里配置的主题后，会将代码高亮以内联样式输出。"
         }
       }
     }
@@ -109,6 +121,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "highlight.js": "^11.11.1",
     "showdown": "^2.1.0"
   }
 }

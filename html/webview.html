@@ -129,6 +129,12 @@
             </select>
         </div>
         <div class="settings-item">
+            <label>代码主题</label>
+            <select id="code-theme" title="选择代码主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                tabindex="-1" data-focusable="true">
+            </select>
+        </div>
+        <div class="settings-item">
             <label>
                 <input id="convert-links-to-references" type="checkbox">
                 外链转引用
@@ -164,6 +170,7 @@
     const fontSizeSelect = document.getElementById("font-size");
     const fontFamilySelect = document.getElementById("font-family");
     const themeSelect = document.getElementById("theme");
+    const codeThemeSelect = document.getElementById("code-theme");
     const linkReferenceCheckbox = document.getElementById("convert-links-to-references");
     const viewHost = document.getElementById("view-host");
     const initialState = vscode.getState() || {};
@@ -171,7 +178,9 @@
     let latestMarkdownHtml = "";
     let latestRenderedInlineHtml = "";
     let currentThemes = [];
+    let currentCodeThemes = [];
     let selectedThemeId = "default";
+    let selectedCodeThemeId = "default";
     let linkReferenceOverrides = initialState.linkReferenceOverrides && typeof initialState.linkReferenceOverrides === "object"
         ? initialState.linkReferenceOverrides
         : {};
@@ -208,6 +217,10 @@
 
     function findThemeById(themeId) {
         return currentThemes.find(theme => theme.id === themeId);
+    }
+
+    function findCodeThemeById(codeThemeId) {
+        return currentCodeThemes.find(theme => theme.id === codeThemeId);
     }
 
     function updateWebviewState() {
@@ -359,7 +372,37 @@
             appendInlineStyle(code, `font-family: ${FIXED_CODE_FONT};`);
         });
 
+        applyCodeThemeStyles(root);
+
         return root;
+    }
+
+    function applyCodeThemeStyles(root) {
+        const codeTheme = findCodeThemeById(selectedCodeThemeId);
+        if (!codeTheme) {
+            return;
+        }
+
+        root.querySelectorAll("[data-mdbp-code-block]").forEach((node) => {
+            applyStyleMap(node, codeTheme.blockStyle);
+        });
+        root.querySelectorAll("[data-mdbp-code-content]").forEach((node) => {
+            applyStyleMap(node, codeTheme.codeStyle);
+        });
+
+        const tokenStyles = codeTheme.tokenStyles;
+        if (!tokenStyles || typeof tokenStyles !== "object") {
+            return;
+        }
+
+        Object.entries(tokenStyles).forEach(([selector, styleMap]) => {
+            if (!selector) {
+                return;
+            }
+            root.querySelectorAll(selector).forEach((node) => {
+                applyStyleMap(node, styleMap);
+            });
+        });
     }
 
     function setThemeOptions(themes, nextSelectedThemeId) {
@@ -391,6 +434,30 @@
         if (latestMarkdownHtml) {
             renderMarkdownToPreview(latestMarkdownHtml);
         }
+    }
+
+    function setCodeThemeOptions(codeThemes, nextSelectedCodeThemeId) {
+        currentCodeThemes = Array.isArray(codeThemes) ? codeThemes : [];
+        const allOptions = [{ id: "default", name: "默认" }, ...currentCodeThemes];
+
+        codeThemeSelect.innerHTML = "";
+        allOptions.forEach((theme) => {
+            const option = document.createElement("option");
+            option.value = theme.id;
+            option.textContent = theme.name;
+            codeThemeSelect.appendChild(option);
+        });
+
+        if (typeof nextSelectedCodeThemeId === "string" && nextSelectedCodeThemeId) {
+            selectedCodeThemeId = nextSelectedCodeThemeId;
+        }
+
+        const available = allOptions.some(theme => theme.id === selectedCodeThemeId);
+        if (!available) {
+            selectedCodeThemeId = "default";
+        }
+
+        codeThemeSelect.value = selectedCodeThemeId;
     }
 
     function applyFontSize(fontSize) {
@@ -567,6 +634,9 @@
                 return;
             }
 
+            pre.setAttribute("data-mdbp-code-block", "");
+            code.setAttribute("data-mdbp-code-content", "");
+
             pre.setAttribute(
                 "style",
                 "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;"
@@ -625,6 +695,15 @@
         });
     });
 
+    codeThemeSelect.addEventListener("change", () => {
+        selectedCodeThemeId = codeThemeSelect.value;
+        renderMarkdownToPreview(latestMarkdownHtml);
+        vscode.postMessage({
+            command: "selectCodeTheme",
+            data: selectedCodeThemeId
+        });
+    });
+
     linkReferenceCheckbox.addEventListener("change", () => {
         linkReferenceOverrides[selectedThemeId] = linkReferenceCheckbox.checked;
         updateWebviewState();
@@ -658,6 +737,10 @@
                 setThemeOptions(
                     Array.isArray(payload?.themes) ? payload.themes : [],
                     typeof payload?.selectedThemeId === "string" ? payload.selectedThemeId : undefined
+                );
+                setCodeThemeOptions(
+                    Array.isArray(payload?.codeThemes) ? payload.codeThemes : [],
+                    typeof payload?.selectedCodeThemeId === "string" ? payload.selectedCodeThemeId : undefined
                 );
                 break;
             }

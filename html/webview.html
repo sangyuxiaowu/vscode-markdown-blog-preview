@@ -11,7 +11,7 @@
     <link rel="stylesheet" type="text/css" href="[insert-vscode-approot]/out/vs/workbench/workbench.desktop.main.css">
     <style>
         :root {
-            --settings-height: 52px;
+            --settings-height: 92px;
         }
 
         body {
@@ -62,7 +62,14 @@
 
         .settings-body {
             display: flex;
+            flex-direction: column;
+            gap: 8px;
             margin: 8px;
+        }
+
+        .settings-row {
+            display: flex;
+            gap: 8px;
         }
 
         .settings-item {
@@ -104,46 +111,50 @@
 
 <div class="settings">
     <div class="settings-body">
-        <div class="settings-item">
-            <label>字号</label>
-            <select title="选择字体大小" id="font-size" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                tabindex="-1" data-focusable="true">
-                <option value="14" style="font-size: 14px;">14px 稍小</option>
-                <option value="15" style="font-size: 15px;" selected>15px 默认</option>
-                <option value="16" style="font-size: 16px;">16px 稍大</option>
-                <option value="17" style="font-size: 17px;">17px 很大</option>
-            </select>
+        <div class="settings-row">
+            <div class="settings-item">
+                <label>字号</label>
+                <select title="选择字体大小" id="font-size" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                    tabindex="-1" data-focusable="true">
+                    <option value="14" style="font-size: 14px;">14px 稍小</option>
+                    <option value="15" style="font-size: 15px;" selected>15px 默认</option>
+                    <option value="16" style="font-size: 16px;">16px 稍大</option>
+                    <option value="17" style="font-size: 17px;">17px 很大</option>
+                </select>
+            </div>
+            <div class="settings-item">
+                <label>字体</label>
+                <select id="font-family" title="选择字体" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                    tabindex="-1" data-focusable="true">
+                    <option value="sans" selected>无衬线</option>
+                    <option value="serif">衬线</option>
+                </select>
+            </div>
+            <div class="settings-item">
+                <label>主题</label>
+                <select id="theme" title="选择主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                    tabindex="-1" data-focusable="true">
+                </select>
+            </div>
         </div>
-        <div class="settings-item">
-            <label>字体</label>
-            <select id="font-family" title="选择字体" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                tabindex="-1" data-focusable="true">
-                <option value="sans" selected>无衬线</option>
-                <option value="serif">衬线</option>
-            </select>
-        </div>
-        <div class="settings-item">
-            <label>主题</label>
-            <select id="theme" title="选择主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                tabindex="-1" data-focusable="true">
-            </select>
-        </div>
-        <div class="settings-item">
-            <label>代码主题</label>
-            <select id="code-theme" title="选择代码主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                tabindex="-1" data-focusable="true">
-            </select>
-        </div>
-        <div class="settings-item">
-            <label>
-                <input id="convert-links-to-references" type="checkbox">
-                外链转引用
-            </label>
-        </div>
-        <div class="settings-item">
-            <a class="monaco-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
-                <div class="monaco-button-label">复制</div>
-            </a>
+        <div class="settings-row">
+            <div class="settings-item">
+                <label>代码主题</label>
+                <select id="code-theme" title="选择代码主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                    tabindex="-1" data-focusable="true">
+                </select>
+            </div>
+            <div class="settings-item">
+                <label>
+                    <input id="convert-links-to-references" type="checkbox">
+                    外链转引用
+                </label>
+            </div>
+            <div class="settings-item">
+                <a class="monaco-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
+                    <div class="monaco-button-label">复制</div>
+                </a>
+            </div>
         </div>
 
     </div>

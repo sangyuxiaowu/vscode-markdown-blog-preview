@@ -109,7 +109,8 @@
 		},
 		"[data-mdbp-references-index]": {
 			"font-size": "90%",
-			"opacity": "0.6"
+			"opacity": "0.6",
+			"font-style": "normal"
 		},
 		"[data-mdbp-references-url]": {
 			"word-break": "break-all",

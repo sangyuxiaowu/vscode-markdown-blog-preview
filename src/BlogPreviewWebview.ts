@@ -189,6 +189,11 @@ class BlogView{
         return vscode.workspace.textDocuments.find((document) => document.languageId === "markdown");
     }
 
+    stripLeadingFrontMatter(markdownContent: string): string {
+        const leadingFrontMatterPattern = /^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n)*/;
+        return markdownContent.replace(leadingFrontMatterPattern, "");
+    }
+
     updatePreview() {
         const previewDocument = this.getPreviewDocument();
         if (previewDocument === undefined) {
@@ -203,6 +208,7 @@ class BlogView{
 
 
         let data = previewDocument.getText();
+        data = this.stripLeadingFrontMatter(data);
 
         // 转换 md 为 html
         const showdown = require("showdown");

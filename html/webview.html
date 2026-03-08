@@ -156,6 +156,11 @@
                     微信公众号适配
                 </label>
             </div>
+
+        </div>
+
+        <div class="settings-row">
+            
             <div class="settings-item">
                 <a class="monaco-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
                     <div class="monaco-button-label">复制</div>
@@ -766,7 +771,7 @@
     function normalizeLineIndent(text) {
         const NBSP = "\u00A0";
         const tabAsSpaces = `${NBSP}${NBSP}${NBSP}${NBSP}`;
-        
+
         const segments = text.split(/(\n)/);
         let atLineStart = true;
 

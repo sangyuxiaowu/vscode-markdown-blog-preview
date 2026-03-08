@@ -72,7 +72,7 @@
 		"ul": {
 			"margin-left": "0",
 			"padding-left": "1em",
-			"list-style": "circle"
+			"list-style": "disc"
 		},
 		".footnotes": {
 			"margin": "0.5em 8px",
@@ -82,8 +82,6 @@
 			"margin": "1.5em 8px"
 		},
 		"li": {
-			"text-indent": "-1em",
-			"display": "block",
 			"margin": "0.5em 8px"
 		},
 		"a": {

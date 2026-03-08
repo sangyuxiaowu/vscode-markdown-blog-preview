@@ -151,6 +151,12 @@
                 </label>
             </div>
             <div class="settings-item">
+                <label>
+                    <input id="wechat-adaptation" type="checkbox">
+                    微信公众号适配
+                </label>
+            </div>
+            <div class="settings-item">
                 <a class="monaco-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
                     <div class="monaco-button-label">复制</div>
                 </a>
@@ -183,6 +189,7 @@
     const themeSelect = document.getElementById("theme");
     const codeThemeSelect = document.getElementById("code-theme");
     const linkReferenceCheckbox = document.getElementById("convert-links-to-references");
+    const wechatAdaptationCheckbox = document.getElementById("wechat-adaptation");
     const viewHost = document.getElementById("view-host");
     const initialState = vscode.getState() || {};
     let syncingFromExtension = false;
@@ -194,6 +201,9 @@
     let selectedCodeThemeId = "default";
     let linkReferenceOverrides = initialState.linkReferenceOverrides && typeof initialState.linkReferenceOverrides === "object"
         ? initialState.linkReferenceOverrides
+        : {};
+    let wechatAdaptationOverrides = initialState.wechatAdaptationOverrides && typeof initialState.wechatAdaptationOverrides === "object"
+        ? initialState.wechatAdaptationOverrides
         : {};
 
     const CONTENT_FONT_SANS = "-apple-system-font,BlinkMacSystemFont, Helvetica Neue, PingFang SC, Hiragino Sans GB , Microsoft YaHei UI , Microsoft YaHei ,Arial,sans-serif";
@@ -236,7 +246,8 @@
 
     function updateWebviewState() {
         vscode.setState({
-            linkReferenceOverrides
+            linkReferenceOverrides,
+            wechatAdaptationOverrides
         });
     }
 
@@ -256,6 +267,24 @@
 
     function syncLinkReferenceCheckbox(themeId) {
         linkReferenceCheckbox.checked = getLinkReferenceEnabled(themeId);
+    }
+
+    function shouldAutoEnableWechatAdaptation(themeId) {
+        const theme = findThemeById(themeId);
+        const themeName = typeof theme?.name === "string" ? theme.name : "";
+        return themeName.includes("微信");
+    }
+
+    function getWechatAdaptationEnabled(themeId) {
+        if (Object.prototype.hasOwnProperty.call(wechatAdaptationOverrides, themeId)) {
+            return Boolean(wechatAdaptationOverrides[themeId]);
+        }
+
+        return shouldAutoEnableWechatAdaptation(themeId);
+    }
+
+    function syncWechatAdaptationCheckbox(themeId) {
+        wechatAdaptationCheckbox.checked = getWechatAdaptationEnabled(themeId);
     }
 
     function normalizeStyleObject(style) {
@@ -442,6 +471,7 @@
         themeSelect.value = selectedThemeId;
         applyTheme(selectedThemeId);
         syncLinkReferenceCheckbox(selectedThemeId);
+        syncWechatAdaptationCheckbox(selectedThemeId);
         if (latestMarkdownHtml) {
             renderMarkdownToPreview(latestMarkdownHtml);
         }
@@ -671,6 +701,102 @@
         return container;
     }
 
+    // 微信适配必须的调整，li 和 Code 结构调整
+    function applyFinalWechatStructure(root) {
+        const blockTags = new Set(["P", "UL", "OL", "PRE", "SECTION", "TABLE", "BLOCKQUOTE", "DIV", "FIGURE", "H1", "H2", "H3", "H4", "H5", "H6"]);
+
+        root.querySelectorAll("li").forEach((li) => {
+            const childNodes = Array.from(li.childNodes);
+            const fragment = document.createDocumentFragment();
+            let inlineBuffer = [];
+
+            const flushInlineBuffer = () => {
+                if (inlineBuffer.length === 0) {
+                    return;
+                }
+
+                const paragraph = document.createElement("p");
+                inlineBuffer.forEach((node) => {
+                    paragraph.appendChild(node);
+                });
+                fragment.appendChild(paragraph);
+                inlineBuffer = [];
+            };
+
+            childNodes.forEach((node) => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tagName = node.tagName.toUpperCase();
+                    if (blockTags.has(tagName)) {
+                        flushInlineBuffer();
+                        fragment.appendChild(node);
+                        return;
+                    }
+                }
+
+                inlineBuffer.push(node);
+            });
+
+            flushInlineBuffer();
+
+            if (fragment.childNodes.length > 0) {
+                li.replaceChildren(fragment);
+            }
+        });
+
+        root.querySelectorAll("pre > code").forEach((code) => {
+            const textNodes = [];
+            const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+            let currentNode = walker.nextNode();
+            while (currentNode) {
+                textNodes.push(currentNode);
+                currentNode = walker.nextNode();
+            }
+
+            textNodes.forEach((textNode) => {
+                const original = textNode.nodeValue || "";
+                const normalized = normalizeLineIndent(original);
+                if (normalized !== original) {
+                    textNode.nodeValue = normalized;
+                }
+            });
+        });
+
+    }
+
+    function normalizeLineIndent(text) {
+        const NBSP = "\u00A0";
+        const tabAsSpaces = `${NBSP}${NBSP}${NBSP}${NBSP}`;
+        
+        const segments = text.split(/(\n)/);
+        let atLineStart = true;
+
+        return segments.map((segment) => {
+            if (segment === "\n") {
+                atLineStart = true;
+                return segment;
+            }
+
+            if (!atLineStart || !segment) {
+                if (segment.length > 0) {
+                    atLineStart = false;
+                }
+                return segment;
+            }
+
+            const indentMatch = segment.match(/^[ \t]+/);
+            if (!indentMatch) {
+                atLineStart = false;
+                return segment;
+            }
+
+            const indent = indentMatch[0]
+                .replace(/\t/g, tabAsSpaces)
+                .replace(/ /g, NBSP);
+            atLineStart = false;
+            return `${indent}${segment.slice(indentMatch[0].length)}`;
+        }).join("");
+    }
+
     function renderMarkdownToPreview(rawHtml) {
         if (!rawHtml) {
             shadowView.innerHTML = "";
@@ -680,6 +806,9 @@
 
         const container = applyWechatCodeBlockFormat(rawHtml);
         const resultRoot = applyInlineThemeAndTypography(container);
+        if (wechatAdaptationCheckbox.checked) {
+            applyFinalWechatStructure(resultRoot);
+        }
         latestRenderedInlineHtml = resultRoot.innerHTML;
         shadowView.innerHTML = "";
         shadowView.appendChild(resultRoot);
@@ -699,6 +828,7 @@
     themeSelect.addEventListener("change", () => {
         applyTheme(themeSelect.value);
         syncLinkReferenceCheckbox(themeSelect.value);
+        syncWechatAdaptationCheckbox(themeSelect.value);
         renderMarkdownToPreview(latestMarkdownHtml);
         vscode.postMessage({
             command: "selectTheme",
@@ -717,6 +847,12 @@
 
     linkReferenceCheckbox.addEventListener("change", () => {
         linkReferenceOverrides[selectedThemeId] = linkReferenceCheckbox.checked;
+        updateWebviewState();
+        renderMarkdownToPreview(latestMarkdownHtml);
+    });
+
+    wechatAdaptationCheckbox.addEventListener("change", () => {
+        wechatAdaptationOverrides[selectedThemeId] = wechatAdaptationCheckbox.checked;
         updateWebviewState();
         renderMarkdownToPreview(latestMarkdownHtml);
     });

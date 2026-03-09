@@ -529,6 +529,41 @@
         return container;
     }
 
+    // 替换空白字符为不间断空格，保持微信对代码块的缩进要求
+    function normalizeLineIndent(text) {
+        const NBSP = "\u00A0";
+        const tabAsSpaces = `${NBSP}${NBSP}${NBSP}${NBSP}`;
+
+        const segments = text.split(/(\n)/);
+        let atLineStart = true;
+
+        return segments.map((segment) => {
+            if (segment === "\n") {
+                atLineStart = true;
+                return segment;
+            }
+
+            if (!atLineStart || !segment) {
+                if (segment.length > 0) {
+                    atLineStart = false;
+                }
+                return segment;
+            }
+
+            const indentMatch = segment.match(/^[ \t]+/);
+            if (!indentMatch) {
+                atLineStart = false;
+                return segment;
+            }
+
+            const indent = indentMatch[0]
+                .replace(/\t/g, tabAsSpaces)
+                .replace(/ /g, NBSP);
+            atLineStart = false;
+            return `${indent}${segment.slice(indentMatch[0].length)}`;
+        }).join("");
+    }
+
     function applyFinalWechatStructure(root) {
         const blockTags = new Set(["P", "UL", "OL", "PRE", "SECTION", "TABLE", "BLOCKQUOTE", "DIV", "FIGURE", "H1", "H2", "H3", "H4", "H5", "H6"]);
 
@@ -580,7 +615,7 @@
 
             textNodes.forEach((textNode) => {
                 const original = textNode.nodeValue || "";
-                const normalized = app.normalizeLineIndent(original);
+                const normalized = normalizeLineIndent(original);
                 if (normalized !== original) {
                     textNode.nodeValue = normalized;
                 }
@@ -588,6 +623,7 @@
         });
     }
 
+    // 核心入口，渲染 Markdown HTML 到预览区域
     function renderMarkdownToPreview(rawHtml) {
         if (!rawHtml) {
             app.view.shadowView.innerHTML = "";

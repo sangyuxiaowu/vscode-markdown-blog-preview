@@ -1,6 +1,7 @@
 ﻿(function () {
     const vscode = acquireVsCodeApi();
 
+    // 获取 DOM 引用
     const refs = {
         previewWrapper: document.getElementsByClassName("preview-wrapper")[0],
         previewInfo: document.getElementsByClassName("preview")[0],
@@ -17,8 +18,10 @@
         copyButton: document.getElementById("copy")
     };
 
+    // 初始化状态
     const initialState = vscode.getState() || {};
 
+    // 定义全局状态对象
     const state = {
         syncingFromExtension: false,
         latestMarkdownHtml: "",
@@ -37,12 +40,17 @@
             : {}
     };
 
-    const shadowRoot = refs.viewHost.attachShadow({ mode: "open" });
-    const shadowStyle = document.createElement("style");
-    shadowStyle.textContent = "\n        :host { display: block; }\n        #view { display: block; }\n    ";
-    const shadowView = document.createElement("div");
-    shadowView.id = "view";
-    shadowRoot.append(shadowStyle, shadowView);
+    initializeShadowDom();
+
+    // 创建 Shadow DOM 并将预览内容放入其中，隔离样式
+    function initializeShadowDom() {
+        const shadowRoot = refs.viewHost.attachShadow({ mode: "open" });
+        const shadowStyle = document.createElement("style");
+        shadowStyle.textContent = "\n        :host { display: block; }\n        #view { display: block; }\n    ";
+        const shadowView = document.createElement("div");
+        shadowView.id = "view";
+        shadowRoot.append(shadowStyle, shadowView);
+    }
 
     function findThemeById(themeId) {
         return state.currentThemes.find((theme) => theme.id === themeId);
@@ -105,40 +113,6 @@
         refs.wechatAdaptationCheckbox.checked = getWechatAdaptationEnabled(themeId);
     }
 
-    function normalizeLineIndent(text) {
-        const NBSP = "\u00A0";
-        const tabAsSpaces = `${NBSP}${NBSP}${NBSP}${NBSP}`;
-
-        const segments = text.split(/(\n)/);
-        let atLineStart = true;
-
-        return segments.map((segment) => {
-            if (segment === "\n") {
-                atLineStart = true;
-                return segment;
-            }
-
-            if (!atLineStart || !segment) {
-                if (segment.length > 0) {
-                    atLineStart = false;
-                }
-                return segment;
-            }
-
-            const indentMatch = segment.match(/^[ \t]+/);
-            if (!indentMatch) {
-                atLineStart = false;
-                return segment;
-            }
-
-            const indent = indentMatch[0]
-                .replace(/\t/g, tabAsSpaces)
-                .replace(/ /g, NBSP);
-            atLineStart = false;
-            return `${indent}${segment.slice(indentMatch[0].length)}`;
-        }).join("");
-    }
-
     window.mdbpApp = {
         vscode,
         refs,
@@ -155,7 +129,6 @@
         getLinkReferenceEnabled,
         syncLinkReferenceCheckbox,
         getWechatAdaptationEnabled,
-        syncWechatAdaptationCheckbox,
-        normalizeLineIndent
+        syncWechatAdaptationCheckbox
     };
 })();

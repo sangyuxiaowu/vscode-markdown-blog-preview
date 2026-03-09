@@ -12,6 +12,7 @@ Markdown 文章排版发布插件，面向公众号、博客、知乎、Bilibili
 - 行内代码样式可配置（`inlineCodeStyle`）
 - 主题与代码主题选择自动记忆
 - 正文支持无衬线/衬线切换
+- 图床上传：支持按图床 ID 记录上传映射并自动替换预览图片 URL
 
 ## 使用方式
 
@@ -20,6 +21,12 @@ Markdown 文章排版发布插件，面向公众号、博客、知乎、Bilibili
 3. 在预览页调整字号、字体、主题、代码主题。
 4. 如需适配微信公众号等平台，可勾选 `外链转引用`。
 5. 点击 `复制`，粘贴到目标发布平台。
+
+如需图床上传：
+
+1. 在设置中配置 `mdbp.imageHost.apiUrl` 与 `mdbp.imageHost.token`。
+2. 在预览页选择图床，点击 `上传图片`。
+3. 插件会把上传结果写入当前 Markdown 文件的 YAML front matter（按图床 ID 分组）。
 
 说明：
 
@@ -134,6 +141,43 @@ Markdown 文章排版发布插件，面向公众号、博客、知乎、Bilibili
 - `themes/code-themes/github-light.json`
 - `themes/code-themes/monokai.json`
 - `themes/code-themes/vscode-dark.json`
+
+## 图床配置与 YAML 结构
+
+新增配置项：
+
+```json
+"mdbp.imageHost.apiUrl": "http://localhost:5269",
+"mdbp.imageHost.token": "your-token"
+```
+
+说明：
+
+- 当上述两项都已配置时，预览页面会显示图床下拉和上传按钮。
+- 上传时会扫描正文中的本地图片（Markdown 图片与 HTML `img`）以及 front matter 的 `cover` 字段。
+- 已上传映射会写入 `mdbp.imageHosts.<hostId>`，渲染时若选择对应图床会自动替换为远程 URL。
+
+示例 front matter：
+
+```yaml
+---
+title: 示例文章
+cover: ./images/cover.png
+mdbp:
+	imageHosts:
+		wechat:
+			images:
+				./images/a.png:
+					imageUrl: https://example.com/a.png
+					imageId: MEDIA_ID_A
+					uploadedAt: 2026-03-08T10:00:00.000Z
+			cover:
+				localPath: ./images/cover.png
+				imageUrl: https://example.com/cover.png
+				imageId: MEDIA_ID_COVER
+				uploadedAt: 2026-03-08T10:00:00.000Z
+---
+```
 
 ## 外链转引用
 

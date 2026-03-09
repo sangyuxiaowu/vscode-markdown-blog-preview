@@ -11,7 +11,7 @@
     <link rel="stylesheet" type="text/css" href="[insert-vscode-approot]/out/vs/workbench/workbench.desktop.main.css">
     <style>
         :root {
-            --settings-height: 92px;
+            --settings-height: 128px;
         }
 
         body {
@@ -76,6 +76,22 @@
             flex: 1;
             display: flex;
             align-items: center;
+        }
+
+        #image-host-row {
+            display: none;
+        }
+
+        #upload-images[disabled] {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        #upload-images {
+            width: auto;
+            padding: 4px 10px;
+            margin-left: 8px;
+            white-space: nowrap;
         }
 
         .preview-wrapper {
@@ -160,6 +176,18 @@
         </div>
 
         <div class="settings-row">
+            <div class="settings-item" id="image-host-row">
+                <label>图床</label>
+                <select id="image-host" title="选择图床" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                        tabindex="-1" data-focusable="true">
+                </select>
+                <a class="monaco-button monaco-text-button" id="upload-images" tabindex="0" role="button" title="上传本地图片">
+                    <div class="monaco-button-label">上传图片</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="settings-row">
             
             <div class="settings-item">
                 <a class="monaco-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
@@ -193,6 +221,9 @@
     const fontFamilySelect = document.getElementById("font-family");
     const themeSelect = document.getElementById("theme");
     const codeThemeSelect = document.getElementById("code-theme");
+    const imageHostRow = document.getElementById("image-host-row");
+    const imageHostSelect = document.getElementById("image-host");
+    const uploadImagesButton = document.getElementById("upload-images");
     const linkReferenceCheckbox = document.getElementById("convert-links-to-references");
     const wechatAdaptationCheckbox = document.getElementById("wechat-adaptation");
     const viewHost = document.getElementById("view-host");
@@ -204,6 +235,8 @@
     let currentCodeThemes = [];
     let selectedThemeId = "default";
     let selectedCodeThemeId = "default";
+    let selectedImageHostId = initialState.selectedImageHostId || "";
+    let isImageHostEnabled = false;
     let linkReferenceOverrides = initialState.linkReferenceOverrides && typeof initialState.linkReferenceOverrides === "object"
         ? initialState.linkReferenceOverrides
         : {};
@@ -251,9 +284,52 @@
 
     function updateWebviewState() {
         vscode.setState({
+            selectedImageHostId,
             linkReferenceOverrides,
             wechatAdaptationOverrides
         });
+    }
+
+    function syncSettingsHeight() {
+        document.documentElement.style.setProperty("--settings-height", imageHostRow.style.display === "flex" ? "128px" : "92px");
+    }
+
+    function setImageHostOptions(enabled, hosts, nextSelectedHostId) {
+        isImageHostEnabled = Boolean(enabled);
+        imageHostRow.style.display = isImageHostEnabled ? "flex" : "none";
+        syncSettingsHeight();
+
+        const hostItems = Array.isArray(hosts) ? hosts : [];
+        imageHostSelect.innerHTML = "";
+
+        hostItems.forEach((host) => {
+            const option = document.createElement("option");
+            option.value = host.id;
+            option.textContent = host.name || host.id;
+            imageHostSelect.appendChild(option);
+        });
+
+        if (!isImageHostEnabled || hostItems.length === 0) {
+            selectedImageHostId = "";
+            uploadImagesButton.setAttribute("disabled", "disabled");
+            uploadImagesButton.setAttribute("aria-disabled", "true");
+            updateWebviewState();
+            return;
+        }
+
+        if (typeof nextSelectedHostId === "string" && nextSelectedHostId) {
+            selectedImageHostId = nextSelectedHostId;
+        }
+
+        const hostExists = hostItems.some((host) => host.id === selectedImageHostId);
+        if (!hostExists) {
+            selectedImageHostId = hostItems[0].id;
+        }
+
+        imageHostSelect.value = selectedImageHostId;
+        uploadImagesButton.removeAttribute("disabled");
+        uploadImagesButton.removeAttribute("aria-disabled");
+        updateWebviewState();
     }
 
     function shouldAutoEnableLinkReferences(themeId) {
@@ -821,6 +897,7 @@
 
     applyTheme("default");
     applyFontSize(fontSizeSelect.value);
+    syncSettingsHeight();
 
     fontSizeSelect.addEventListener("change", () => {
         applyFontSize(fontSizeSelect.value);
@@ -854,6 +931,26 @@
         linkReferenceOverrides[selectedThemeId] = linkReferenceCheckbox.checked;
         updateWebviewState();
         renderMarkdownToPreview(latestMarkdownHtml);
+    });
+
+    imageHostSelect.addEventListener("change", () => {
+        selectedImageHostId = imageHostSelect.value;
+        updateWebviewState();
+        vscode.postMessage({
+            command: "selectImageHost",
+            data: selectedImageHostId
+        });
+    });
+
+    uploadImagesButton.addEventListener("click", () => {
+        if (!isImageHostEnabled || !selectedImageHostId || uploadImagesButton.hasAttribute("disabled")) {
+            return;
+        }
+
+        vscode.postMessage({
+            command: "uploadImages",
+            data: selectedImageHostId
+        });
     });
 
     wechatAdaptationCheckbox.addEventListener("change", () => {
@@ -894,6 +991,26 @@
                     Array.isArray(payload?.codeThemes) ? payload.codeThemes : [],
                     typeof payload?.selectedCodeThemeId === "string" ? payload.selectedCodeThemeId : undefined
                 );
+                break;
+            }
+            case "updateImageHosts": {
+                const payload = message.data || {};
+                setImageHostOptions(
+                    Boolean(payload.enabled),
+                    Array.isArray(payload.hosts) ? payload.hosts : [],
+                    typeof payload.selectedHostId === "string" ? payload.selectedHostId : ""
+                );
+                break;
+            }
+            case "uploading": {
+                const uploading = Boolean(message.data);
+                if (uploading) {
+                    uploadImagesButton.setAttribute("disabled", "disabled");
+                    uploadImagesButton.setAttribute("aria-disabled", "true");
+                } else if (isImageHostEnabled && selectedImageHostId) {
+                    uploadImagesButton.removeAttribute("disabled");
+                    uploadImagesButton.removeAttribute("aria-disabled");
+                }
                 break;
             }
         }

@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
+import { createHash, randomBytes } from "crypto";
+import * as YAML from "yaml";
 const hljs = require("highlight.js/lib/core");
 const bash = require("highlight.js/lib/languages/bash");
 const c = require("highlight.js/lib/languages/c");
@@ -17,7 +19,7 @@ const rust = require("highlight.js/lib/languages/rust");
 const sql = require("highlight.js/lib/languages/sql");
 const typescript = require("highlight.js/lib/languages/typescript");
 const xml = require("highlight.js/lib/languages/xml");
-const yaml = require("highlight.js/lib/languages/yaml");
+const h_yaml = require("highlight.js/lib/languages/yaml");
 
 interface ThemeConfigItem {
     id: string;
@@ -37,9 +39,33 @@ interface CodeThemeConfigItem {
     tokenStyles?: Record<string, Record<string, string>>;
 }
 
+interface ImageHostInfo {
+    id: string;
+    name: string;
+    enabled: boolean;
+}
+
+interface UploadedImageInfo {
+    imageUrl: string;
+    imageId?: string;
+    uploadedAt: string;
+}
+
+interface ParsedFrontMatter {
+    frontMatter: Record<string, unknown>;
+    body: string;
+}
+
+interface ImageHostApiErrorPayload {
+    code?: number;
+    msg?: string;
+    data?: unknown;
+}
+
 const DEFAULT_THEME_RELATIVE_PATH = "themes/default.json";
 const SELECTED_THEME_STORAGE_KEY = "mdbp.selectedThemeId";
 const SELECTED_CODE_THEME_STORAGE_KEY = "mdbp.selectedCodeThemeId";
+const SELECTED_IMAGE_HOST_STORAGE_KEY = "mdbp.selectedImageHostId";
 
 hljs.registerLanguage("bash", bash);
 hljs.registerLanguage("sh", bash);
@@ -73,8 +99,8 @@ hljs.registerLanguage("tsx", typescript);
 hljs.registerLanguage("html", xml);
 hljs.registerLanguage("xml", xml);
 hljs.registerLanguage("svg", xml);
-hljs.registerLanguage("yaml", yaml);
-hljs.registerLanguage("yml", yaml);
+hljs.registerLanguage("yaml", h_yaml);
+hljs.registerLanguage("yml", h_yaml);
 
 class BlogView{
     context: vscode.ExtensionContext;
@@ -88,6 +114,8 @@ class BlogView{
     isApplyingWebviewScroll: boolean = false;
     selectedThemeId: string = "default";
     selectedCodeThemeId: string = "default";
+    selectedImageHostId: string = "";
+    availableImageHosts: ImageHostInfo[] = [];
 
     configureWebviewScripts(webviewScripts: string[]) {
         //webviewScripts.push("libs/d3.js");
@@ -98,6 +126,7 @@ class BlogView{
         this.context = context;
         this.selectedThemeId = context.workspaceState.get<string>(SELECTED_THEME_STORAGE_KEY, "default");
         this.selectedCodeThemeId = context.workspaceState.get<string>(SELECTED_CODE_THEME_STORAGE_KEY, "default");
+        this.selectedImageHostId = context.workspaceState.get<string>(SELECTED_IMAGE_HOST_STORAGE_KEY, "");
 
         // 获取当前工作目录或编辑文件的路径
         this.currentWorkspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || "";
@@ -128,6 +157,7 @@ class BlogView{
         this.initializeWebviewHtml();
         this.registerDisposables();
         this.pushThemeConfigs();
+        void this.refreshImageHosts();
     }
     initializeWebviewHtml() {
         let loadingScriptHtml: string[] = [];
@@ -162,6 +192,10 @@ class BlogView{
                     this.pushThemeConfigs();
                     this.updatePreview();
                 }
+
+                if (event.affectsConfiguration("mdbp.imageHost.apiUrl") || event.affectsConfiguration("mdbp.imageHost.token")) {
+                    void this.refreshImageHosts();
+                }
             },
             null,
             this.context.subscriptions
@@ -189,11 +223,6 @@ class BlogView{
         return vscode.workspace.textDocuments.find((document) => document.languageId === "markdown");
     }
 
-    stripLeadingFrontMatter(markdownContent: string): string {
-        const leadingFrontMatterPattern = /^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n)*/;
-        return markdownContent.replace(leadingFrontMatterPattern, "");
-    }
-
     updatePreview() {
         const previewDocument = this.getPreviewDocument();
         if (previewDocument === undefined) {
@@ -206,9 +235,10 @@ class BlogView{
         // 更新当前编辑的文件
         this.currentEditingFilePath = previewDocument.fileName;
 
+        const parsedContent = this.parseMarkdownWithFrontMatter(previewDocument.getText());
+        const imageHostData = this.getImageHostData(parsedContent.frontMatter, this.selectedImageHostId);
 
-        let data = previewDocument.getText();
-        data = this.stripLeadingFrontMatter(data);
+        let data = parsedContent.body;
 
         // 转换 md 为 html
         const showdown = require("showdown");
@@ -241,6 +271,24 @@ class BlogView{
                         continue;
                     }
 
+                    const normalizedSrc = this.normalizeLocalKey(srcValue);
+                    const hostedInfo = imageHostData.images[normalizedSrc];
+                    const coverUrl = imageHostData.cover?.localPath === normalizedSrc
+                        ? imageHostData.cover.imageUrl
+                        : undefined;
+
+                    if (hostedInfo?.imageUrl) {
+                        const replacedHostedTag = imgArr[i].replace(src[1], hostedInfo.imageUrl);
+                        data = data.replace(imgArr[i], replacedHostedTag);
+                        continue;
+                    }
+
+                    if (coverUrl) {
+                        const replacedCoverTag = imgArr[i].replace(src[1], coverUrl);
+                        data = data.replace(imgArr[i], replacedCoverTag);
+                        continue;
+                    }
+
                     const imgUri = this.resolveLocalImagePath(srcValue, previewDocument.fileName);
                     if (!imgUri) {
                         continue;
@@ -257,9 +305,193 @@ class BlogView{
             data = this.highlightCodeBlocksInHtml(data);
         }
 
+        this.pushImageHostState();
+
         this.view.webview.postMessage({
             command: "renderMarkdown", data: data
         });
+    }
+
+    getImageHostSettings() {
+        const config = vscode.workspace.getConfiguration("mdbp");
+        const apiUrl = (config.get<string>("imageHost.apiUrl", "") || "").trim().replace(/\/$/, "");
+        const token = (config.get<string>("imageHost.token", "") || "").trim();
+        return {
+            apiUrl,
+            token,
+            enabled: Boolean(apiUrl && token)
+        };
+    }
+
+    pushImageHostState() {
+        const settings = this.getImageHostSettings();
+        const activeHostId = this.availableImageHosts.some((host) => host.id === this.selectedImageHostId)
+            ? this.selectedImageHostId
+            : (this.availableImageHosts[0]?.id || "");
+
+        if (activeHostId !== this.selectedImageHostId) {
+            this.persistSelectedImageHost(activeHostId);
+        }
+
+        this.view.webview.postMessage({
+            command: "updateImageHosts",
+            data: {
+                enabled: settings.enabled,
+                hosts: this.availableImageHosts,
+                selectedHostId: activeHostId
+            }
+        });
+    }
+
+    async refreshImageHosts() {
+        const settings = this.getImageHostSettings();
+        if (!settings.enabled) {
+            this.availableImageHosts = [];
+            this.pushImageHostState();
+            this.updatePreview();
+            return;
+        }
+
+        try {
+            const signedListUrl = this.buildSignedUrl(settings.apiUrl, "/api/imagehost/list", settings.token);
+            const response = await fetch(signedListUrl, { method: "GET" });
+            const payload = await this.parseJsonResponse<ImageHostApiErrorPayload & { data?: { hosts?: Array<Record<string, unknown>> } }>(response);
+
+            if (!response.ok || payload.code !== 0) {
+                throw new Error(this.buildImageHostApiError("获取图床列表", response, payload));
+            }
+
+            const nextHosts = Array.isArray(payload.data?.hosts)
+                ? payload.data!.hosts!.map((host) => {
+                    const id = typeof host.id === "string" ? host.id : "";
+                    const name = typeof host.name === "string" ? host.name : id;
+                    const enabled = host.enabled !== false;
+                    return { id, name, enabled } as ImageHostInfo;
+                }).filter((host) => Boolean(host.id))
+                : [];
+
+            this.availableImageHosts = nextHosts.filter((host) => host.enabled);
+        } catch (error) {
+            this.availableImageHosts = [];
+            const errorMessage = error instanceof Error ? error.message : "未知错误";
+            vscode.window.showWarningMessage(`图床服务不可用：${errorMessage}`);
+        }
+
+        this.pushImageHostState();
+        this.updatePreview();
+    }
+
+    buildSignedUrl(apiUrl: string, endpoint: string, token: string): string {
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+        const nonce = randomBytes(20).toString("hex").slice(0, 30);
+        const signature = this.generateSignature(token, timestamp, nonce);
+        const url = new URL(`${apiUrl}${endpoint}`);
+        url.searchParams.set("timestamp", timestamp);
+        url.searchParams.set("nonce", nonce);
+        url.searchParams.set("signature", signature);
+        return url.toString();
+    }
+
+    generateSignature(token: string, timestamp: string, nonce: string): string {
+        const raw = [token, timestamp, nonce].sort().join("");
+        return createHash("sha1").update(raw, "utf8").digest("hex");
+    }
+
+    parseMarkdownWithFrontMatter(content: string): ParsedFrontMatter {
+        const normalizedContent = content.startsWith("\uFEFF") ? content.slice(1) : content;
+        const match = normalizedContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+        if (!match) {
+            return {
+                frontMatter: {},
+                body: normalizedContent
+            };
+        }
+
+        const yamlText = match[1] || "";
+        const body = normalizedContent.slice(match[0].length);
+
+        try {
+            const parsed = YAML.parse(yamlText);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return {
+                    frontMatter: parsed as Record<string, unknown>,
+                    body
+                };
+            }
+        } catch {
+            return {
+                frontMatter: {},
+                body: normalizedContent
+            };
+        }
+
+        return {
+            frontMatter: {},
+            body
+        };
+    }
+
+    buildMarkdownWithFrontMatter(frontMatter: Record<string, unknown>, body: string): string {
+        const yamlBody = YAML.stringify(frontMatter).trim();
+        if (!yamlBody) {
+            return body;
+        }
+        return `---\n${yamlBody}\n---\n\n${body}`;
+    }
+
+    getImageHostData(frontMatter: Record<string, unknown>, hostId: string): {
+        images: Record<string, UploadedImageInfo>;
+        cover?: { localPath: string; imageUrl: string; imageId?: string; uploadedAt?: string };
+    } {
+        if (!hostId) {
+            return { images: {} };
+        }
+
+        const mdbp = this.toRecord(frontMatter.mdbp);
+        const imageHosts = this.toRecord(mdbp.imageHosts);
+        const hostData = this.toRecord(imageHosts[hostId]);
+
+        const imagesRaw = this.toRecord(hostData.images);
+        const images: Record<string, UploadedImageInfo> = {};
+        Object.entries(imagesRaw).forEach(([localPath, value]) => {
+            const normalized = this.normalizeLocalKey(localPath);
+            const item = this.toRecord(value);
+            const imageUrl = typeof item.imageUrl === "string" ? item.imageUrl : "";
+            if (!imageUrl) {
+                return;
+            }
+
+            images[normalized] = {
+                imageUrl,
+                imageId: typeof item.imageId === "string" ? item.imageId : undefined,
+                uploadedAt: typeof item.uploadedAt === "string" ? item.uploadedAt : ""
+            };
+        });
+
+        const coverRaw = this.toRecord(hostData.cover);
+        const coverLocalPath = typeof coverRaw.localPath === "string" ? this.normalizeLocalKey(coverRaw.localPath) : "";
+        const coverImageUrl = typeof coverRaw.imageUrl === "string" ? coverRaw.imageUrl : "";
+        const cover = coverLocalPath && coverImageUrl
+            ? {
+                localPath: coverLocalPath,
+                imageUrl: coverImageUrl,
+                imageId: typeof coverRaw.imageId === "string" ? coverRaw.imageId : undefined,
+                uploadedAt: typeof coverRaw.uploadedAt === "string" ? coverRaw.uploadedAt : undefined
+            }
+            : undefined;
+
+        return { images, cover };
+    }
+
+    normalizeLocalKey(value: string): string {
+        return value.trim().replace(/\\/g, "/");
+    }
+
+    toRecord(value: unknown): Record<string, unknown> {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            return {};
+        }
+        return value as Record<string, unknown>;
     }
 
     pushThemeConfigs() {
@@ -538,6 +770,15 @@ class BlogView{
                     this.updatePreview();
                 }
                 break;
+            case "selectImageHost":
+                if (typeof message.data === "string") {
+                    this.persistSelectedImageHost(message.data.trim());
+                    this.updatePreview();
+                }
+                break;
+            case "uploadImages":
+                void this.uploadImagesToImageHost(typeof message.data === "string" ? message.data : "");
+                break;
             case "msg":
                 this.showMessage(message.data.message, message.data.type);
                 break;
@@ -552,6 +793,257 @@ class BlogView{
     persistSelectedCodeTheme(themeId: string) {
         this.selectedCodeThemeId = themeId;
         void this.context.workspaceState.update(SELECTED_CODE_THEME_STORAGE_KEY, themeId);
+    }
+
+    persistSelectedImageHost(hostId: string) {
+        this.selectedImageHostId = hostId;
+        void this.context.workspaceState.update(SELECTED_IMAGE_HOST_STORAGE_KEY, hostId);
+        this.pushImageHostState();
+    }
+
+    async uploadImagesToImageHost(hostId: string) {
+        const activeHostId = hostId || this.selectedImageHostId;
+        const settings = this.getImageHostSettings();
+
+        if (!settings.enabled) {
+            this.showMessage("请先配置 mdbp.imageHost.apiUrl 和 mdbp.imageHost.token", "warning");
+            return;
+        }
+        if (!activeHostId) {
+            this.showMessage("请先选择图床", "warning");
+            return;
+        }
+
+        const previewDocument = this.getPreviewDocument();
+        if (!previewDocument) {
+            this.showMessage("未找到可上传的 Markdown 文件", "warning");
+            return;
+        }
+
+        this.view.webview.postMessage({ command: "uploading", data: true });
+
+        try {
+            const parsed = this.parseMarkdownWithFrontMatter(previewDocument.getText());
+            const imageHostData = this.getImageHostData(parsed.frontMatter, activeHostId);
+            const localImageKeys = this.extractLocalImageKeysFromMarkdown(parsed.body);
+            const coverPath = this.extractCoverLocalPath(parsed.frontMatter);
+            if (coverPath) {
+                localImageKeys.add(this.normalizeLocalKey(coverPath));
+            }
+
+            if (localImageKeys.size === 0) {
+                this.showMessage("未找到可上传的本地图片", "warning");
+                return;
+            }
+
+            const uploadedNow: Array<{ localPath: string; imageUrl: string; imageId?: string }> = [];
+            const skipped: string[] = [];
+            const failed: string[] = [];
+            for (const localPath of localImageKeys) {
+                const alreadyUploaded = imageHostData.images[localPath]?.imageUrl
+                    || (imageHostData.cover?.localPath === localPath && imageHostData.cover.imageUrl);
+                if (alreadyUploaded) {
+                    skipped.push(localPath);
+                    continue;
+                }
+
+                const imageUri = this.resolveLocalImagePath(localPath, previewDocument.fileName);
+                if (!imageUri || !fs.existsSync(imageUri.fsPath)) {
+                    failed.push(`${localPath}(文件不存在)`);
+                    continue;
+                }
+
+                let uploadResult: { imageUrl: string; imageId?: string };
+                try {
+                    uploadResult = await this.uploadSingleImage(settings.apiUrl, settings.token, activeHostId, imageUri.fsPath);
+                } catch (uploadError) {
+                    const uploadErrorMessage = uploadError instanceof Error ? uploadError.message : "未知错误";
+                    failed.push(`${localPath}(${uploadErrorMessage})`);
+                    continue;
+                }
+
+                uploadedNow.push({
+                    localPath,
+                    imageUrl: uploadResult.imageUrl,
+                    imageId: uploadResult.imageId
+                });
+            }
+
+            if (uploadedNow.length === 0 && failed.length === 0) {
+                this.showMessage("图片已全部上传，无需重复上传", "success");
+                return;
+            }
+
+            const nextFrontMatter = this.applyUploadedMappingsToFrontMatter(
+                parsed.frontMatter,
+                activeHostId,
+                uploadedNow,
+                coverPath ? this.normalizeLocalKey(coverPath) : ""
+            );
+            const nextContent = this.buildMarkdownWithFrontMatter(nextFrontMatter, parsed.body);
+
+            await this.replaceDocumentContent(previewDocument, nextContent);
+            this.persistSelectedImageHost(activeHostId);
+            this.updatePreview();
+
+            const summary = `上传完成：成功 ${uploadedNow.length}，跳过 ${skipped.length}，失败 ${failed.length}`;
+            const failedDetail = failed.length > 0 ? `\n失败详情：${failed.join("; ")}` : "";
+            this.showMessage(failed.length > 0 ? `${summary}${failedDetail}` : summary, failed.length > 0 ? "warning" : "success");
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "未知错误";
+            this.showMessage(`上传失败：${errorMessage}`, "error");
+        } finally {
+            this.view.webview.postMessage({ command: "uploading", data: false });
+        }
+    }
+
+    async uploadSingleImage(apiUrl: string, token: string, hostId: string, absoluteFilePath: string): Promise<{ imageUrl: string; imageId?: string }> {
+        const signedUploadUrl = this.buildSignedUrl(apiUrl, "/api/imagehost/upload", token);
+        const formData = new FormData();
+        const fileBuffer = fs.readFileSync(absoluteFilePath);
+        const fileBlob = new Blob([fileBuffer]);
+        formData.append("hostId", hostId);
+        formData.append("file", fileBlob, path.basename(absoluteFilePath));
+
+        const response = await fetch(signedUploadUrl, {
+            method: "POST",
+            body: formData
+        });
+        const payload = await this.parseJsonResponse<ImageHostApiErrorPayload & {
+            data?: {
+                success?: boolean;
+                imageUrl?: string;
+                imageId?: string;
+            };
+        }>(response);
+
+        const imageUrl = payload?.data?.imageUrl;
+        if (!response.ok || payload.code !== 0 || !payload?.data?.success || !imageUrl) {
+            throw new Error(this.buildImageHostApiError("上传图片", response, payload));
+        }
+
+        return {
+            imageUrl,
+            imageId: payload.data.imageId
+        };
+    }
+
+    async parseJsonResponse<T>(response: Response): Promise<T> {
+        const rawText = await response.text();
+        if (!rawText) {
+            return {} as T;
+        }
+
+        try {
+            return JSON.parse(rawText) as T;
+        } catch {
+            return ({ msg: rawText } as unknown) as T;
+        }
+    }
+
+    buildImageHostApiError(action: string, response: Response, payload?: ImageHostApiErrorPayload): string {
+        const code = typeof payload?.code === "number" ? payload.code : undefined;
+        const msg = typeof payload?.msg === "string" && payload.msg.trim() ? payload.msg.trim() : "无错误消息";
+        const codeText = code !== undefined ? ` code=${code}` : "";
+        return `${action}失败(status=${response.status}${codeText}): ${msg}`;
+    }
+
+    extractLocalImageKeysFromMarkdown(markdownBody: string): Set<string> {
+        const localPaths = new Set<string>();
+        const markdownImageRegex = /!\[[^\]]*\]\(([^)]+)\)/g;
+        const htmlImgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi;
+
+        let markdownMatch: RegExpExecArray | null;
+        while ((markdownMatch = markdownImageRegex.exec(markdownBody)) !== null) {
+            const rawTarget = markdownMatch[1].trim();
+            const cleanedTarget = rawTarget
+                .replace(/^<|>$/g, "")
+                .split(/\s+/)[0]
+                .trim();
+            if (this.isLocalImagePath(cleanedTarget)) {
+                localPaths.add(this.normalizeLocalKey(cleanedTarget));
+            }
+        }
+
+        let htmlMatch: RegExpExecArray | null;
+        while ((htmlMatch = htmlImgRegex.exec(markdownBody)) !== null) {
+            const rawSrc = htmlMatch[1].trim();
+            if (this.isLocalImagePath(rawSrc)) {
+                localPaths.add(this.normalizeLocalKey(rawSrc));
+            }
+        }
+
+        return localPaths;
+    }
+
+    isLocalImagePath(imagePath: string): boolean {
+        if (!imagePath) {
+            return false;
+        }
+        return !/^(https?|ftp|data|vscode-resource|vscode-webview-resource):/i.test(imagePath);
+    }
+
+    extractCoverLocalPath(frontMatter: Record<string, unknown>): string | undefined {
+        const cover = frontMatter.cover;
+        if (typeof cover !== "string") {
+            return undefined;
+        }
+
+        const normalized = cover.trim();
+        if (!normalized || !this.isLocalImagePath(normalized)) {
+            return undefined;
+        }
+        return normalized;
+    }
+
+    applyUploadedMappingsToFrontMatter(
+        frontMatter: Record<string, unknown>,
+        hostId: string,
+        uploadedMappings: Array<{ localPath: string; imageUrl: string; imageId?: string }>,
+        coverLocalPath: string
+    ): Record<string, unknown> {
+        const nextFrontMatter: Record<string, unknown> = { ...frontMatter };
+        const mdbp = this.toRecord(nextFrontMatter.mdbp);
+        const imageHosts = this.toRecord(mdbp.imageHosts);
+        const hostData = this.toRecord(imageHosts[hostId]);
+        const images = this.toRecord(hostData.images);
+
+        const now = new Date().toISOString();
+
+        uploadedMappings.forEach((item) => {
+            const normalizedLocal = this.normalizeLocalKey(item.localPath);
+            const uploadedItem = {
+                imageUrl: item.imageUrl,
+                imageId: item.imageId,
+                uploadedAt: now
+            };
+
+            images[normalizedLocal] = uploadedItem;
+            if (coverLocalPath && normalizedLocal === coverLocalPath) {
+                hostData.cover = {
+                    localPath: normalizedLocal,
+                    imageUrl: item.imageUrl,
+                    imageId: item.imageId,
+                    uploadedAt: now
+                };
+            }
+        });
+
+        hostData.images = images;
+        imageHosts[hostId] = hostData;
+        nextFrontMatter.mdbp = {
+            ...mdbp,
+            imageHosts
+        };
+
+        return nextFrontMatter;
+    }
+
+    async replaceDocumentContent(document: vscode.TextDocument, content: string) {
+        const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length));
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, fullRange, content);
+        await vscode.workspace.applyEdit(edit);
     }
 
     highlightCodeBlocksInHtml(html: string): string {
@@ -615,7 +1107,7 @@ class BlogView{
                 vscode.window.showErrorMessage(message, { modal: true }, "OK");
                 break;
             case "warning":
-                vscode.window.showWarningMessage(message, { modal: true }, "OK");
+                vscode.window.showWarningMessage(message);
                 break;
             default:
                 vscode.window.showInformationMessage(message);

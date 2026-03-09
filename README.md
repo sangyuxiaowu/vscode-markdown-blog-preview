@@ -55,6 +55,9 @@ Markdown 文章排版发布插件，面向公众号、博客、知乎、Bilibili
 ```json
 {
 	"name": "公众号简洁风",
+	"contentFontSans": "-apple-system-font,BlinkMacSystemFont, Helvetica Neue, PingFang SC, Hiragino Sans GB, Microsoft YaHei UI, Microsoft YaHei, Arial, sans-serif",
+	"contentFontSerif": "Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, 'PingFang SC', Cambria, Cochin, Georgia, Times, 'Times New Roman', serif",
+	"fixedCodeFont": "Consolas, 'Liberation Mono', Menlo, Courier, monospace",
 	"previewStyle": {
 		"background": "#ffffff",
 		"padding": "24px",
@@ -81,6 +84,13 @@ Markdown 文章排版发布插件，面向公众号、博客、知乎、Bilibili
 	}
 }
 ```
+
+说明：
+
+- `themes/default.json` 是内置默认主题，未配置 `mdbp.themeConfigFiles` 时也会自动加载。
+- `contentFontSans` 和 `contentFontSerif` 控制预览中的正文字体切换。
+- `fixedCodeFont` 控制行内代码和代码块的字体族。
+- `inlineCodeStyle` 控制行内代码的盒子样式。
 
 主题会显示在预览页的“主题”下拉中，切换后立即生效。
 

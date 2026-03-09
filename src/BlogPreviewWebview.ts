@@ -27,6 +27,9 @@ interface ThemeConfigItem {
     previewStyle?: Record<string, string>;
     contentStyle?: Record<string, string>;
     elementStyles?: Record<string, Record<string, string>>;
+    contentFontSans?: string;
+    contentFontSerif?: string;
+    fixedCodeFont?: string;
     inlineCodeStyle?: Record<string, string>;
     contentCss?: string;
 }
@@ -629,6 +632,15 @@ class BlogView{
         const previewStyle = this.normalizeStyleMap(config.previewStyle);
         const contentStyle = this.normalizeStyleMap(config.contentStyle);
         const elementStyles = this.normalizeNestedStyleMap(config.elementStyles);
+        const contentFontSans = typeof config.contentFontSans === "string" && config.contentFontSans.trim()
+            ? config.contentFontSans.trim()
+            : undefined;
+        const contentFontSerif = typeof config.contentFontSerif === "string" && config.contentFontSerif.trim()
+            ? config.contentFontSerif.trim()
+            : undefined;
+        const fixedCodeFont = typeof config.fixedCodeFont === "string" && config.fixedCodeFont.trim()
+            ? config.fixedCodeFont.trim()
+            : undefined;
         const inlineCodeStyle = this.normalizeStyleMap(config.inlineCodeStyle);
         const contentCss = typeof config.contentCss === "string" ? config.contentCss : undefined;
 
@@ -638,6 +650,9 @@ class BlogView{
             previewStyle,
             contentStyle,
             elementStyles,
+            contentFontSans,
+            contentFontSerif,
+            fixedCodeFont,
             inlineCodeStyle,
             contentCss
         };

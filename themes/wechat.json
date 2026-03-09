@@ -1,9 +1,19 @@
 {
 	"name": "微信公众号",
+	"contentFontSans": "-apple-system-font,BlinkMacSystemFont, Helvetica Neue, PingFang SC, Hiragino Sans GB, Microsoft YaHei UI, Microsoft YaHei, Arial, sans-serif",
+	"contentFontSerif": "Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, 'PingFang SC', Cambria, Cochin, Georgia, Times, 'Times New Roman', serif",
+	"fixedCodeFont": "Consolas, 'Liberation Mono', Menlo, Courier, monospace",
 	"contentStyle": {
 		"text-align": "left",
 		"color": "#3f3f3f",
 		"line-height": "1.75"
+	},
+	"inlineCodeStyle": {
+		"font-size": "90%",
+		"color": "#d14",
+		"background": "rgba(27,31,35,.05)",
+		"padding": "3px 5px",
+		"border-radius": "4px"
 	},
 	"elementStyles": {
 		"h1": {
@@ -89,6 +99,28 @@
 			"text-decoration": "none",
 			"border-bottom": "1px solid #d1e9ff"
 		},
+		"strong": {
+			"color": "#ff5f2e",
+			"font-weight": "bold"
+		},
+		"table": {
+			"border-collapse": "collapse",
+			"text-align": "center",
+			"margin": "1em 8px"
+		},
+		"thead": {
+			"background": "rgba(0, 0, 0, 0.05)"
+		},
+		"td": {
+			"font-size": "80%",
+			"border": "1px solid #dfdfdf",
+			"padding": "0.25em 0.5em"
+		},
+		"figcaption": {
+			"text-align": "center",
+			"color": "#888",
+			"font-size": "0.8em"
+		},
 		"[data-mdbp-ref-sup]": {
 			"font-size": "75%",
 			"opacity": "0.75",
@@ -115,35 +147,6 @@
 		"[data-mdbp-references-url]": {
 			"word-break": "break-all",
 			"font-size": "90%"
-		},
-		"strong": {
-			"color": "#ff5f2e",
-			"font-weight": "bold"
-		},
-		"table": {
-			"border-collapse": "collapse",
-			"text-align": "center",
-			"margin": "1em 8px"
-		},
-		"thead": {
-			"background": "rgba(0, 0, 0, 0.05)"
-		},
-		"td": {
-			"font-size": "80%",
-			"border": "1px solid #dfdfdf",
-			"padding": "0.25em 0.5em"
-		},
-		"figcaption": {
-			"text-align": "center",
-			"color": "#888",
-			"font-size": "0.8em"
 		}
-	},
-	"inlineCodeStyle": {
-		"font-size": "90%",
-		"color": "#d14",
-		"background": "rgba(27,31,35,.05)",
-		"padding": "3px 5px",
-		"border-radius": "4px"
 	}
 }

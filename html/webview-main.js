@@ -37,26 +37,6 @@
             : {}
     };
 
-    const constants = {
-        CONTENT_FONT_SANS: "-apple-system-font,BlinkMacSystemFont, Helvetica Neue, PingFang SC, Hiragino Sans GB , Microsoft YaHei UI , Microsoft YaHei ,Arial,sans-serif",
-        CONTENT_FONT_SERIF: "Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, 'PingFang SC', Cambria, Cochin, Georgia, Times, 'Times New Roman', serif",
-        FIXED_CODE_FONT: "Consolas, \"Liberation Mono\", Menlo, Courier, monospace",
-        defaultPreviewStyle: {
-            width: "375px",
-            background: "#fff",
-            padding: "20px",
-            boxShadow: "0 0 60px rgb(0 0 0 / 10%)"
-        },
-        defaultInlineCodeStyle: {
-            padding: "2px 6px",
-            margin: "0 2px",
-            color: "#c7254e",
-            background: "#f9f2f4",
-            borderRadius: "4px",
-            fontSize: "0.92em"
-        }
-    };
-
     const shadowRoot = refs.viewHost.attachShadow({ mode: "open" });
     const shadowStyle = document.createElement("style");
     shadowStyle.textContent = "\n        :host { display: block; }\n        #view { display: block; }\n    ";
@@ -163,7 +143,6 @@
         vscode,
         refs,
         state,
-        constants,
         view: {
             shadowRoot,
             shadowView

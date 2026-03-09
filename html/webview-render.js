@@ -18,6 +18,29 @@
         return result;
     }
 
+    function mergeStyleObject(baseStyle, overrideStyle) {
+        return {
+            ...normalizeStyleObject(baseStyle),
+            ...normalizeStyleObject(overrideStyle)
+        };
+    }
+
+    function mergeNestedStyleObject(baseStyle, overrideStyle) {
+        const base = baseStyle && typeof baseStyle === "object" ? baseStyle : {};
+        const override = overrideStyle && typeof overrideStyle === "object" ? overrideStyle : {};
+        const selectors = new Set([...Object.keys(base), ...Object.keys(override)]);
+        const result = {};
+
+        selectors.forEach((selector) => {
+            const merged = mergeStyleObject(base[selector], override[selector]);
+            if (Object.keys(merged).length > 0) {
+                result[selector] = merged;
+            }
+        });
+
+        return result;
+    }
+
     function styleObjectToCss(style) {
         const entries = Object.entries(normalizeStyleObject(style));
         if (entries.length === 0) {
@@ -37,10 +60,35 @@
         appendInlineStyle(target, styleObjectToCss(style));
     }
 
+    function getDefaultTheme() {
+        return app.findThemeById("default") || app.state.currentThemes[0];
+    }
+
+    function getResolvedTheme(themeId = app.state.selectedThemeId) {
+        const defaultTheme = getDefaultTheme();
+        const selectedTheme = app.findThemeById(themeId) || defaultTheme;
+        if (!defaultTheme && !selectedTheme) {
+            return undefined;
+        }
+
+        return {
+            ...defaultTheme,
+            ...selectedTheme,
+            previewStyle: mergeStyleObject(defaultTheme?.previewStyle, selectedTheme?.previewStyle),
+            contentStyle: mergeStyleObject(defaultTheme?.contentStyle, selectedTheme?.contentStyle),
+            elementStyles: mergeNestedStyleObject(defaultTheme?.elementStyles, selectedTheme?.elementStyles),
+            inlineCodeStyle: mergeStyleObject(defaultTheme?.inlineCodeStyle, selectedTheme?.inlineCodeStyle),
+            contentFontSans: selectedTheme?.contentFontSans || defaultTheme?.contentFontSans,
+            contentFontSerif: selectedTheme?.contentFontSerif || defaultTheme?.contentFontSerif,
+            fixedCodeFont: selectedTheme?.fixedCodeFont || defaultTheme?.fixedCodeFont
+        };
+    }
+
     function getSelectedFontFamily() {
+        const theme = getResolvedTheme();
         return app.refs.fontFamilySelect.value === "serif"
-            ? app.constants.CONTENT_FONT_SERIF
-            : app.constants.CONTENT_FONT_SANS;
+            ? (theme?.contentFontSerif || "")
+            : (theme?.contentFontSans || "");
     }
 
     function parseHttpUrl(href) {
@@ -126,15 +174,20 @@
     }
 
     function applyCodeFontFamily(root) {
-        applyFontFamily(root, "pre > code", app.constants.FIXED_CODE_FONT);
-        applyFontFamily(root, "code:not(pre > code)", app.constants.FIXED_CODE_FONT);
+        const theme = getResolvedTheme();
+        if (!theme?.fixedCodeFont) {
+            return;
+        }
+
+        applyFontFamily(root, "pre > code", theme.fixedCodeFont);
+        applyFontFamily(root, "code:not(pre > code)", theme.fixedCodeFont);
     }
 
     function applyTheme(themeId) {
         app.state.selectedThemeId = themeId;
-        const theme = app.findThemeById(themeId);
+        const theme = getResolvedTheme(themeId);
 
-        const previewStyle = Object.assign({}, app.constants.defaultPreviewStyle, normalizeStyleObject(theme?.previewStyle));
+        const previewStyle = normalizeStyleObject(theme?.previewStyle);
         Object.assign(app.refs.previewInfo.style, previewStyle);
 
         applyFontSize(app.refs.fontSizeSelect.value);
@@ -269,7 +322,7 @@
     }
 
     function applyInlineThemeAndTypography(container) {
-        const theme = app.findThemeById(app.state.selectedThemeId);
+        const theme = getResolvedTheme();
         const rootFontFamily = getSelectedFontFamily();
         const fontSize = app.refs.fontSizeSelect.value;
 
@@ -425,6 +478,7 @@
     }
 
     function styleBlockCode(code) {
+        const theme = getResolvedTheme();
         const pre = code.parentElement;
         if (!pre) {
             return;
@@ -437,20 +491,26 @@
         appendInlineStyle(pre, "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;");
 
         code.setAttribute("style", "");
-        appendInlineStyle(code, `display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; font-family: ${app.constants.FIXED_CODE_FONT};`);
+        appendInlineStyle(code, "display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7;");
+        if (theme?.fixedCodeFont) {
+            appendInlineStyle(code, `font-family: ${theme.fixedCodeFont};`);
+        }
     }
 
     function styleInlineCode(code, theme) {
-        const inlineCodeStyle = Object.assign({}, app.constants.defaultInlineCodeStyle, normalizeStyleObject(theme?.inlineCodeStyle));
+        const inlineCodeStyle = normalizeStyleObject(theme?.inlineCodeStyle);
         const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
         code.setAttribute("style", "");
-        appendInlineStyle(code, `${inlineCodeStyleText} font-family: ${app.constants.FIXED_CODE_FONT};`);
+        appendInlineStyle(code, inlineCodeStyleText);
+        if (theme?.fixedCodeFont) {
+            appendInlineStyle(code, `font-family: ${theme.fixedCodeFont};`);
+        }
     }
 
     function applyWechatCodeBlockFormat(rawHtml) {
         const container = document.createElement("div");
         container.innerHTML = rawHtml;
-        const theme = app.findThemeById(app.state.selectedThemeId);
+        const theme = getResolvedTheme();
 
         convertExternalLinksToReferences(container);
 

@@ -1,0 +1,877 @@
+    const vscode = acquireVsCodeApi();
+    const previewWrapper = document.getElementsByClassName("preview-wrapper")[0];
+    const previewInfo = document.getElementsByClassName("preview")[0];
+    const fontSizeSelect = document.getElementById("font-size");
+    const fontFamilySelect = document.getElementById("font-family");
+    const themeSelect = document.getElementById("theme");
+    const codeThemeSelect = document.getElementById("code-theme");
+    const imageHostRow = document.getElementById("image-host-row");
+    const imageHostSelect = document.getElementById("image-host");
+    const uploadImagesButton = document.getElementById("upload-images");
+    const linkReferenceCheckbox = document.getElementById("convert-links-to-references");
+    const wechatAdaptationCheckbox = document.getElementById("wechat-adaptation");
+    const viewHost = document.getElementById("view-host");
+    const initialState = vscode.getState() || {};
+    let syncingFromExtension = false;
+    let latestMarkdownHtml = "";
+    let latestRenderedInlineHtml = "";
+    let currentThemes = [];
+    let currentCodeThemes = [];
+    let selectedThemeId = "default";
+    let selectedCodeThemeId = "default";
+    let selectedImageHostId = initialState.selectedImageHostId || "";
+    let isImageHostEnabled = false;
+    let linkReferenceOverrides = initialState.linkReferenceOverrides && typeof initialState.linkReferenceOverrides === "object"
+        ? initialState.linkReferenceOverrides
+        : {};
+    let wechatAdaptationOverrides = initialState.wechatAdaptationOverrides && typeof initialState.wechatAdaptationOverrides === "object"
+        ? initialState.wechatAdaptationOverrides
+        : {};
+
+    const CONTENT_FONT_SANS = "-apple-system-font,BlinkMacSystemFont, Helvetica Neue, PingFang SC, Hiragino Sans GB , Microsoft YaHei UI , Microsoft YaHei ,Arial,sans-serif";
+    const CONTENT_FONT_SERIF = "Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, 'PingFang SC', Cambria, Cochin, Georgia, Times, 'Times New Roman', serif";
+    const FIXED_CODE_FONT = "Consolas, \"Liberation Mono\", Menlo, Courier, monospace";
+
+    const shadowRoot = viewHost.attachShadow({ mode: "open" });
+    const shadowStyle = document.createElement("style");
+    shadowStyle.textContent = `
+        :host { display: block; }
+        #view { display: block; }
+    `;
+    const shadowView = document.createElement("div");
+    shadowView.id = "view";
+    shadowRoot.append(shadowStyle, shadowView);
+
+    const defaultPreviewStyle = {
+        width: "375px",
+        background: "#fff",
+        padding: "20px",
+        boxShadow: "0 0 60px rgb(0 0 0 / 10%)"
+    };
+
+    const defaultInlineCodeStyle = {
+        padding: "2px 6px",
+        margin: "0 2px",
+        color: "#c7254e",
+        background: "#f9f2f4",
+        borderRadius: "4px",
+        fontSize: "0.92em"
+    };
+
+    function findThemeById(themeId) {
+        return currentThemes.find(theme => theme.id === themeId);
+    }
+
+    function findCodeThemeById(codeThemeId) {
+        return currentCodeThemes.find(theme => theme.id === codeThemeId);
+    }
+
+    function updateWebviewState() {
+        vscode.setState({
+            selectedImageHostId,
+            linkReferenceOverrides,
+            wechatAdaptationOverrides
+        });
+    }
+
+    function syncSettingsHeight() {
+        document.documentElement.style.setProperty("--settings-height", imageHostRow.style.display === "flex" ? "128px" : "92px");
+    }
+
+    function setImageHostOptions(enabled, hosts, nextSelectedHostId) {
+        isImageHostEnabled = Boolean(enabled);
+        imageHostRow.style.display = isImageHostEnabled ? "flex" : "none";
+        syncSettingsHeight();
+
+        const hostItems = Array.isArray(hosts) ? hosts : [];
+        imageHostSelect.innerHTML = "";
+
+        hostItems.forEach((host) => {
+            const option = document.createElement("option");
+            option.value = host.id;
+            option.textContent = host.name || host.id;
+            imageHostSelect.appendChild(option);
+        });
+
+        if (!isImageHostEnabled || hostItems.length === 0) {
+            selectedImageHostId = "";
+            uploadImagesButton.setAttribute("disabled", "disabled");
+            uploadImagesButton.setAttribute("aria-disabled", "true");
+            updateWebviewState();
+            return;
+        }
+
+        if (typeof nextSelectedHostId === "string" && nextSelectedHostId) {
+            selectedImageHostId = nextSelectedHostId;
+        }
+
+        const hostExists = hostItems.some((host) => host.id === selectedImageHostId);
+        if (!hostExists) {
+            selectedImageHostId = hostItems[0].id;
+        }
+
+        imageHostSelect.value = selectedImageHostId;
+        uploadImagesButton.removeAttribute("disabled");
+        uploadImagesButton.removeAttribute("aria-disabled");
+        updateWebviewState();
+    }
+
+    function shouldAutoEnableLinkReferences(themeId) {
+        const theme = findThemeById(themeId);
+        const themeName = typeof theme?.name === "string" ? theme.name : "";
+        return themeName.includes("微信");
+    }
+
+    function getLinkReferenceEnabled(themeId) {
+        if (Object.prototype.hasOwnProperty.call(linkReferenceOverrides, themeId)) {
+            return Boolean(linkReferenceOverrides[themeId]);
+        }
+
+        return shouldAutoEnableLinkReferences(themeId);
+    }
+
+    function syncLinkReferenceCheckbox(themeId) {
+        linkReferenceCheckbox.checked = getLinkReferenceEnabled(themeId);
+    }
+
+    function shouldAutoEnableWechatAdaptation(themeId) {
+        const theme = findThemeById(themeId);
+        const themeName = typeof theme?.name === "string" ? theme.name : "";
+        return themeName.includes("微信");
+    }
+
+    function getWechatAdaptationEnabled(themeId) {
+        if (Object.prototype.hasOwnProperty.call(wechatAdaptationOverrides, themeId)) {
+            return Boolean(wechatAdaptationOverrides[themeId]);
+        }
+
+        return shouldAutoEnableWechatAdaptation(themeId);
+    }
+
+    function syncWechatAdaptationCheckbox(themeId) {
+        wechatAdaptationCheckbox.checked = getWechatAdaptationEnabled(themeId);
+    }
+
+    function normalizeStyleObject(style) {
+        if (!style || typeof style !== "object") {
+            return {};
+        }
+
+        const result = {};
+        Object.entries(style).forEach(([key, value]) => {
+            if (typeof value === "string") {
+                result[key] = value;
+            }
+        });
+        return result;
+    }
+
+    function styleObjectToCss(style) {
+        const entries = Object.entries(normalizeStyleObject(style));
+        if (entries.length === 0) {
+            return "";
+        }
+        return entries.map(([key, value]) => `${key}: ${value};`).join(" ");
+    }
+
+    function applyTheme(themeId) {
+        selectedThemeId = themeId;
+        const theme = findThemeById(themeId);
+
+        const previewStyle = Object.assign({}, defaultPreviewStyle, normalizeStyleObject(theme?.previewStyle));
+        Object.assign(previewInfo.style, previewStyle);
+
+        applyFontSize(fontSizeSelect.value);
+    }
+
+    function appendInlineStyle(target, styleText) {
+        if (!styleText) {
+            return;
+        }
+
+        // Merge styles through CSSOM so repeated declarations are collapsed
+        // and the latest value wins.
+        target.style.cssText = `${target.style.cssText}; ${styleText}`;
+    }
+
+    function applyStyleMap(target, style) {
+        const cssText = styleObjectToCss(style);
+        appendInlineStyle(target, cssText);
+    }
+
+    function getSelectedFontFamily() {
+        return fontFamilySelect.value === "serif" ? CONTENT_FONT_SERIF : CONTENT_FONT_SANS;
+    }
+
+    function applyBaseInlineStyles(root) {
+        root.querySelectorAll("*").forEach((node) => {
+            if (node.closest("[data-mdbp-code-block]")) {
+                return;
+            }
+            appendInlineStyle(node, "word-break: break-word;");
+        });
+
+        root.querySelectorAll("img").forEach((img) => {
+            appendInlineStyle(img, "max-width: 100%; height: auto;");
+        });
+        root.querySelectorAll("table").forEach((table) => {
+            appendInlineStyle(table, "width: 100%; border-collapse: collapse; margin: 1em 0;");
+        });
+        root.querySelectorAll("th, td").forEach((cell) => {
+            appendInlineStyle(cell, "border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left;");
+        });
+        root.querySelectorAll("blockquote").forEach((blockquote) => {
+            appendInlineStyle(blockquote, "margin: 0.9em 0; padding: 0.25em 0 0.25em 0.9em; border-left: 4px solid #d0d7de; color: #57606a; background: #f6f8fa;");
+        });
+        root.querySelectorAll("pre").forEach((pre) => {
+            appendInlineStyle(pre, "ooverflow-x: scroll;");
+        });
+    }
+
+    function applyInlineThemeAndTypography(container) {
+        const theme = findThemeById(selectedThemeId);
+        const rootFontFamily = getSelectedFontFamily();
+
+        const root = document.createElement("div");
+        root.innerHTML = container.innerHTML;
+
+        root.querySelectorAll("style, script").forEach((node) => {
+            node.remove();
+        });
+
+        appendInlineStyle(root, `font-family: ${rootFontFamily};`);
+        appendInlineStyle(root, `font-size: ${fontSizeSelect.value}px;`);
+        appendInlineStyle(root, "line-height: 1.8;");
+        appendInlineStyle(root, "color: #2f2f2f;");
+        appendInlineStyle(root, "word-break: break-word;");
+        applyStyleMap(root, theme?.contentStyle);
+
+        applyBaseInlineStyles(root);
+
+        root.querySelectorAll("p, li, blockquote, td, th").forEach((node) => {
+            appendInlineStyle(node, `font-family: ${rootFontFamily};`);
+            appendInlineStyle(node, `font-size: ${fontSizeSelect.value}px;`);
+        });
+
+        root.querySelectorAll("h1, h2, h3, h4, h5, h6, a, strong, em").forEach((node) => {
+            appendInlineStyle(node, `font-family: ${rootFontFamily};`);
+        });
+
+        const elementStyles = theme?.elementStyles;
+        if (elementStyles && typeof elementStyles === "object") {
+            Object.entries(elementStyles).forEach(([selector, styleMap]) => {
+                if (!selector) {
+                    return;
+                }
+                root.querySelectorAll(selector).forEach((node) => {
+                    applyStyleMap(node, styleMap);
+                });
+            });
+
+            if (elementStyles.a) {
+                root.querySelectorAll("[data-mdbp-link-text]").forEach((node) => {
+                    applyStyleMap(node, elementStyles.a);
+                });
+            }
+        }
+
+        root.querySelectorAll("pre > code").forEach((code) => {
+            appendInlineStyle(code, `font-family: ${FIXED_CODE_FONT};`);
+        });
+        root.querySelectorAll("code:not(pre > code)").forEach((code) => {
+            appendInlineStyle(code, `font-family: ${FIXED_CODE_FONT};`);
+        });
+
+        applyCodeThemeStyles(root);
+
+        return root;
+    }
+
+    function applyCodeThemeStyles(root) {
+        const codeTheme = findCodeThemeById(selectedCodeThemeId);
+        if (!codeTheme) {
+            return;
+        }
+
+        root.querySelectorAll("[data-mdbp-code-block]").forEach((node) => {
+            applyStyleMap(node, codeTheme.blockStyle);
+        });
+        root.querySelectorAll("[data-mdbp-code-content]").forEach((node) => {
+            applyStyleMap(node, codeTheme.codeStyle);
+        });
+
+        const tokenStyles = codeTheme.tokenStyles;
+        if (!tokenStyles || typeof tokenStyles !== "object") {
+            return;
+        }
+
+        Object.entries(tokenStyles).forEach(([selector, styleMap]) => {
+            if (!selector) {
+                return;
+            }
+            root.querySelectorAll(selector).forEach((node) => {
+                applyStyleMap(node, styleMap);
+            });
+        });
+    }
+
+    function setThemeOptions(themes, nextSelectedThemeId) {
+        currentThemes = Array.isArray(themes) ? themes : [];
+
+        if (currentThemes.length === 0) {
+            currentThemes = [{ id: "default", name: "默认" }];
+        }
+
+        themeSelect.innerHTML = "";
+        currentThemes.forEach(theme => {
+            const option = document.createElement("option");
+            option.value = theme.id;
+            option.textContent = theme.name;
+            themeSelect.appendChild(option);
+        });
+
+        if (typeof nextSelectedThemeId === "string" && nextSelectedThemeId) {
+            selectedThemeId = nextSelectedThemeId;
+        }
+
+        const available = currentThemes.some(theme => theme.id === selectedThemeId);
+        if (!available) {
+            selectedThemeId = currentThemes[0].id;
+        }
+        themeSelect.value = selectedThemeId;
+        applyTheme(selectedThemeId);
+        syncLinkReferenceCheckbox(selectedThemeId);
+        syncWechatAdaptationCheckbox(selectedThemeId);
+        if (latestMarkdownHtml) {
+            renderMarkdownToPreview(latestMarkdownHtml);
+        }
+    }
+
+    function setCodeThemeOptions(codeThemes, nextSelectedCodeThemeId) {
+        currentCodeThemes = Array.isArray(codeThemes) ? codeThemes : [];
+        const allOptions = [{ id: "default", name: "默认" }, ...currentCodeThemes];
+
+        codeThemeSelect.innerHTML = "";
+        allOptions.forEach((theme) => {
+            const option = document.createElement("option");
+            option.value = theme.id;
+            option.textContent = theme.name;
+            codeThemeSelect.appendChild(option);
+        });
+
+        if (typeof nextSelectedCodeThemeId === "string" && nextSelectedCodeThemeId) {
+            selectedCodeThemeId = nextSelectedCodeThemeId;
+        }
+
+        const available = allOptions.some(theme => theme.id === selectedCodeThemeId);
+        if (!available) {
+            selectedCodeThemeId = "default";
+        }
+
+        codeThemeSelect.value = selectedCodeThemeId;
+    }
+
+    function applyFontSize(fontSize) {
+        const parsed = Number(fontSize);
+        if (Number.isNaN(parsed) || parsed <= 0) {
+            return;
+        }
+        if (latestMarkdownHtml) {
+            renderMarkdownToPreview(latestMarkdownHtml);
+        }
+    }
+
+    function isExternalHttpLink(href) {
+        try {
+            const parsedUrl = new URL(href);
+            return parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
+        } catch {
+            return false;
+        }
+    }
+
+    function shouldConvertLink(anchor) {
+        const href = (anchor.getAttribute("href") || "").trim();
+        if (!href || !isExternalHttpLink(href)) {
+            return false;
+        }
+
+        try {
+            const parsedUrl = new URL(href);
+            if (parsedUrl.hostname.toLowerCase() === "mp.weixin.qq.com") {
+                return false;
+            }
+        } catch {
+            return false;
+        }
+
+        const linkText = (anchor.textContent || "").replace(/\s+/g, " ").trim();
+        return Boolean(linkText) && linkText !== href;
+    }
+
+    function convertExternalLinksToReferences(container) {
+        if (!linkReferenceCheckbox.checked) {
+            return;
+        }
+
+        const references = [];
+        const referenceIndexByHref = new Map();
+        const anchors = Array.from(container.querySelectorAll("a[href]"));
+        anchors.forEach((anchor) => {
+            if (!shouldConvertLink(anchor)) {
+                return;
+            }
+
+            const href = (anchor.getAttribute("href") || "").trim();
+            const linkText = (anchor.textContent || "").replace(/\s+/g, " ").trim();
+            let referenceIndex = referenceIndexByHref.get(href);
+            if (!referenceIndex) {
+                referenceIndex = references.length + 1;
+                referenceIndexByHref.set(href, referenceIndex);
+                references.push({
+                    index: referenceIndex,
+                    text: linkText,
+                    href
+                });
+            }
+
+            const fragment = document.createDocumentFragment();
+            const linkTextWrapper = document.createElement("span");
+            linkTextWrapper.setAttribute("data-mdbp-link-text", "");
+            while (anchor.firstChild) {
+                linkTextWrapper.appendChild(anchor.firstChild);
+            }
+            fragment.appendChild(linkTextWrapper);
+
+            const sup = document.createElement("sup");
+            sup.textContent = `[${referenceIndex}]`;
+            sup.setAttribute("data-mdbp-ref-sup", "");
+            linkTextWrapper.appendChild(sup);
+            anchor.replaceWith(fragment);
+        });
+
+        if (references.length === 0) {
+            return;
+        }
+
+        const section = document.createElement("section");
+        section.setAttribute("data-mdbp-references", "");
+
+        const title = document.createElement("h3");
+        title.textContent = "References";
+        title.setAttribute("data-mdbp-references-title", "");
+        section.appendChild(title);
+
+        const paragraph = document.createElement("p");
+        paragraph.setAttribute("data-mdbp-references-list", "");
+
+        references.forEach((reference, index) => {
+            const code = document.createElement("em");
+            code.textContent = `[${reference.index}]`;
+            code.setAttribute("data-mdbp-references-index", "");
+
+            const url = document.createElement("i");
+            url.textContent = reference.href;
+            url.setAttribute("data-mdbp-references-url", "");
+
+            paragraph.appendChild(code);
+            paragraph.appendChild(document.createTextNode(` ${reference.text}: `));
+            paragraph.appendChild(url);
+
+            if (index < references.length - 1) {
+                paragraph.appendChild(document.createElement("br"));
+            }
+        });
+
+        section.appendChild(paragraph);
+        container.appendChild(section);
+    }
+
+    function applyWechatCodeBlockFormat(rawHtml) {
+        const container = document.createElement("div");
+        container.innerHTML = rawHtml;
+        const theme = findThemeById(selectedThemeId);
+
+        convertExternalLinksToReferences(container);
+
+        const images = container.querySelectorAll("img");
+        images.forEach((img) => {
+            if (img.closest("figure")) {
+                return;
+            }
+
+            const altText = (img.getAttribute("alt") || "").trim();
+            const titleText = (img.getAttribute("title") || "").trim();
+            const captionText = altText || titleText;
+            if (!captionText) {
+                return;
+            }
+
+            const figure = document.createElement("figure");
+            const figcaption = document.createElement("figcaption");
+            figcaption.textContent = captionText;
+
+            const parent = img.parentElement;
+            if (parent && parent.tagName.toLowerCase() === "p") {
+                const onlyImageInParagraph = Array.from(parent.childNodes).every((node) => {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        return node === img;
+                    }
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        return !(node.textContent || "").trim();
+                    }
+                    return true;
+                });
+
+                if (onlyImageInParagraph && parent.parentNode) {
+                    parent.parentNode.replaceChild(figure, parent);
+                } else if (parent) {
+                    parent.insertBefore(figure, img);
+                    parent.removeChild(img);
+                }
+            } else if (parent) {
+                parent.insertBefore(figure, img);
+                parent.removeChild(img);
+            }
+
+            figure.appendChild(img);
+            figure.appendChild(figcaption);
+        });
+
+        const blockCodes = container.querySelectorAll("pre > code");
+        blockCodes.forEach(code => {
+            const pre = code.parentElement;
+            if (!pre) {
+                return;
+            }
+
+            pre.setAttribute("data-mdbp-code-block", "");
+            code.setAttribute("data-mdbp-code-content", "");
+
+            pre.setAttribute("style","");
+            appendInlineStyle(pre, "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;");
+
+            code.setAttribute("style", "");
+            appendInlineStyle(code, `display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; font-family: ${FIXED_CODE_FONT};`);
+        });
+
+        const inlineCodes = container.querySelectorAll("code:not(pre > code)");
+        const inlineCodeStyle = Object.assign({}, defaultInlineCodeStyle, normalizeStyleObject(theme?.inlineCodeStyle));
+        const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
+        inlineCodes.forEach(code => {
+            code.setAttribute("style", "");
+            appendInlineStyle(code, `${inlineCodeStyleText} font-family: ${FIXED_CODE_FONT};`);
+        });
+
+        return container;
+    }
+
+    // 微信适配必须的调整，li 和 Code 结构调整
+    function applyFinalWechatStructure(root) {
+        const blockTags = new Set(["P", "UL", "OL", "PRE", "SECTION", "TABLE", "BLOCKQUOTE", "DIV", "FIGURE", "H1", "H2", "H3", "H4", "H5", "H6"]);
+
+        root.querySelectorAll("li").forEach((li) => {
+            const childNodes = Array.from(li.childNodes);
+            const fragment = document.createDocumentFragment();
+            let inlineBuffer = [];
+
+            const flushInlineBuffer = () => {
+                if (inlineBuffer.length === 0) {
+                    return;
+                }
+
+                const paragraph = document.createElement("p");
+                inlineBuffer.forEach((node) => {
+                    paragraph.appendChild(node);
+                });
+                fragment.appendChild(paragraph);
+                inlineBuffer = [];
+            };
+
+            childNodes.forEach((node) => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tagName = node.tagName.toUpperCase();
+                    if (blockTags.has(tagName)) {
+                        flushInlineBuffer();
+                        fragment.appendChild(node);
+                        return;
+                    }
+                }
+
+                inlineBuffer.push(node);
+            });
+
+            flushInlineBuffer();
+
+            if (fragment.childNodes.length > 0) {
+                li.replaceChildren(fragment);
+            }
+        });
+
+        // 将空格转换为不间断空格，防止微信编辑器自动去除行首的空格导致格式错乱
+        root.querySelectorAll("pre > code").forEach((code) => {
+            const textNodes = [];
+            const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+            let currentNode = walker.nextNode();
+            while (currentNode) {
+                textNodes.push(currentNode);
+                currentNode = walker.nextNode();
+            }
+
+            textNodes.forEach((textNode) => {
+                const original = textNode.nodeValue || "";
+                const normalized = normalizeLineIndent(original);
+                if (normalized !== original) {
+                    textNode.nodeValue = normalized;
+                }
+            });
+        });
+
+    }
+
+    function normalizeLineIndent(text) {
+        const NBSP = "\u00A0";
+        const tabAsSpaces = `${NBSP}${NBSP}${NBSP}${NBSP}`;
+
+        const segments = text.split(/(\n)/);
+        let atLineStart = true;
+
+        return segments.map((segment) => {
+            if (segment === "\n") {
+                atLineStart = true;
+                return segment;
+            }
+
+            if (!atLineStart || !segment) {
+                if (segment.length > 0) {
+                    atLineStart = false;
+                }
+                return segment;
+            }
+
+            const indentMatch = segment.match(/^[ \t]+/);
+            if (!indentMatch) {
+                atLineStart = false;
+                return segment;
+            }
+
+            const indent = indentMatch[0]
+                .replace(/\t/g, tabAsSpaces)
+                .replace(/ /g, NBSP);
+            atLineStart = false;
+            return `${indent}${segment.slice(indentMatch[0].length)}`;
+        }).join("");
+    }
+
+    function renderMarkdownToPreview(rawHtml) {
+        if (!rawHtml) {
+            shadowView.innerHTML = "";
+            latestRenderedInlineHtml = "";
+            return;
+        }
+
+        const container = applyWechatCodeBlockFormat(rawHtml);
+        const resultRoot = applyInlineThemeAndTypography(container);
+        if (wechatAdaptationCheckbox.checked) {
+            applyFinalWechatStructure(resultRoot);
+        }
+        latestRenderedInlineHtml = resultRoot.innerHTML;
+        shadowView.innerHTML = "";
+        shadowView.appendChild(resultRoot);
+    }
+
+    applyTheme("default");
+    applyFontSize(fontSizeSelect.value);
+    syncSettingsHeight();
+
+    fontSizeSelect.addEventListener("change", () => {
+        applyFontSize(fontSizeSelect.value);
+    });
+
+    fontFamilySelect.addEventListener("change", () => {
+        renderMarkdownToPreview(latestMarkdownHtml);
+    });
+
+    themeSelect.addEventListener("change", () => {
+        applyTheme(themeSelect.value);
+        syncLinkReferenceCheckbox(themeSelect.value);
+        syncWechatAdaptationCheckbox(themeSelect.value);
+        renderMarkdownToPreview(latestMarkdownHtml);
+        vscode.postMessage({
+            command: "selectTheme",
+            data: themeSelect.value
+        });
+    });
+
+    codeThemeSelect.addEventListener("change", () => {
+        selectedCodeThemeId = codeThemeSelect.value;
+        renderMarkdownToPreview(latestMarkdownHtml);
+        vscode.postMessage({
+            command: "selectCodeTheme",
+            data: selectedCodeThemeId
+        });
+    });
+
+    linkReferenceCheckbox.addEventListener("change", () => {
+        linkReferenceOverrides[selectedThemeId] = linkReferenceCheckbox.checked;
+        updateWebviewState();
+        renderMarkdownToPreview(latestMarkdownHtml);
+    });
+
+    imageHostSelect.addEventListener("change", () => {
+        selectedImageHostId = imageHostSelect.value;
+        updateWebviewState();
+        vscode.postMessage({
+            command: "selectImageHost",
+            data: selectedImageHostId
+        });
+    });
+
+    uploadImagesButton.addEventListener("click", () => {
+        if (!isImageHostEnabled || !selectedImageHostId || uploadImagesButton.hasAttribute("disabled")) {
+            return;
+        }
+
+        vscode.postMessage({
+            command: "uploadImages",
+            data: selectedImageHostId
+        });
+    });
+
+    wechatAdaptationCheckbox.addEventListener("change", () => {
+        wechatAdaptationOverrides[selectedThemeId] = wechatAdaptationCheckbox.checked;
+        updateWebviewState();
+        renderMarkdownToPreview(latestMarkdownHtml);
+    });
+
+    window.addEventListener("message", event => {
+        const message = event.data;
+        switch (message.command) {
+            case "scroll": {
+                syncingFromExtension = true;
+                previewWrapper.scrollTo(0, previewInfo.clientHeight * message.data);
+                requestAnimationFrame(() => {
+                    syncingFromExtension = false;
+                });
+                break;
+            }
+
+            case "renderMarkdown": {
+                latestMarkdownHtml = message.data || "";
+                renderMarkdownToPreview(latestMarkdownHtml);
+                break;
+            }
+            case "updateThemes": {
+                const payload = message.data;
+                if (Array.isArray(payload)) {
+                    setThemeOptions(payload);
+                    break;
+                }
+
+                setThemeOptions(
+                    Array.isArray(payload?.themes) ? payload.themes : [],
+                    typeof payload?.selectedThemeId === "string" ? payload.selectedThemeId : undefined
+                );
+                setCodeThemeOptions(
+                    Array.isArray(payload?.codeThemes) ? payload.codeThemes : [],
+                    typeof payload?.selectedCodeThemeId === "string" ? payload.selectedCodeThemeId : undefined
+                );
+                break;
+            }
+            case "updateImageHosts": {
+                const payload = message.data || {};
+                setImageHostOptions(
+                    Boolean(payload.enabled),
+                    Array.isArray(payload.hosts) ? payload.hosts : [],
+                    typeof payload.selectedHostId === "string" ? payload.selectedHostId : ""
+                );
+                break;
+            }
+            case "uploading": {
+                const uploading = Boolean(message.data);
+                if (uploading) {
+                    uploadImagesButton.setAttribute("disabled", "disabled");
+                    uploadImagesButton.setAttribute("aria-disabled", "true");
+                } else if (isImageHostEnabled && selectedImageHostId) {
+                    uploadImagesButton.removeAttribute("disabled");
+                    uploadImagesButton.removeAttribute("aria-disabled");
+                }
+                break;
+            }
+        }
+    });
+    async function copyPreviewContent() {
+        const html = latestRenderedInlineHtml || shadowView.innerHTML;
+        const plainText = shadowView.textContent || "";
+
+        if (!html || !html.trim()) {
+            return false;
+        }
+
+        if (navigator.clipboard && window.ClipboardItem) {
+            try {
+                const item = new ClipboardItem({
+                    "text/html": new Blob([html], { type: "text/html" }),
+                    "text/plain": new Blob([plainText], { type: "text/plain" })
+                });
+                await navigator.clipboard.write([item]);
+                return true;
+            } catch {
+            }
+        }
+
+        const temp = document.createElement("div");
+        temp.setAttribute("contenteditable", "true");
+        temp.style.position = "fixed";
+        temp.style.left = "-99999px";
+        temp.style.top = "0";
+        temp.innerHTML = html;
+        document.body.appendChild(temp);
+
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(temp);
+
+        if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        const copied = document.execCommand("copy");
+
+        if (selection) {
+            selection.removeAllRanges();
+        }
+        document.body.removeChild(temp);
+        return copied;
+    }
+
+    // 点击复制富文本信息到剪贴板
+    document.getElementById("copy").addEventListener("click", async () => {
+        const copied = await copyPreviewContent();
+        vscode.postMessage({
+            command: "msg",
+            data: {
+                type: copied ? "success" : "warning",
+                message: copied ? "复制成功" : "复制失败"
+            }
+        });
+    });
+    // 滚动同步
+    previewWrapper.addEventListener("scroll", () => {
+        if (syncingFromExtension) {
+            return;
+        }
+        const scrollTop = previewWrapper.scrollTop;
+        const scrollHeight = previewWrapper.scrollHeight;
+        const clientHeight = previewWrapper.clientHeight;
+        const denominator = scrollHeight - clientHeight;
+        if (denominator <= 0) {
+            return;
+        }
+        const scrollPercent = scrollTop / denominator;
+        vscode.postMessage({
+            command: "scroll",
+            data: scrollPercent
+        });
+    });

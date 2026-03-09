@@ -116,7 +116,7 @@ class BlogView{
     availableImageHosts: ImageHostInfo[] = [];
 
     configureWebviewScripts(webviewScripts: string[]) {
-        //webviewScripts.push("libs/d3.js");
+        webviewScripts.push("webview-main.js");
         return webviewScripts;
     }
 
@@ -162,7 +162,7 @@ class BlogView{
         this.configureWebviewScripts([]).forEach(path => {
             const jsUri = this.view.webview.asWebviewUri(vscode.Uri.file(this.getHtmlAssetPath(path)));
             loadingScriptHtml.push(
-                `<script src="${jsUri}"></script>`);
+                `<script defer src="${jsUri}"></script>`);
         });
 
         const html: string = fs.readFileSync(path.join(this.getHtmlAssetPath(

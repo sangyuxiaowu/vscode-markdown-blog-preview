@@ -80,40 +80,45 @@
         });
     }
 
+    function setUploadButtonEnabled(enabled) {
+        if (enabled) {
+            refs.uploadImagesButton.removeAttribute("disabled");
+            refs.uploadImagesButton.removeAttribute("aria-disabled");
+            return;
+        }
+
+        refs.uploadImagesButton.setAttribute("disabled", "disabled");
+        refs.uploadImagesButton.setAttribute("aria-disabled", "true");
+    }
+
     function syncSettingsHeight() {
         document.documentElement.style.setProperty("--settings-height", refs.imageHostRow.style.display === "flex" ? "128px" : "92px");
     }
 
-    function shouldAutoEnableLinkReferences(themeId) {
+    function isWechatTheme(themeId) {
         const theme = findThemeById(themeId);
         const themeName = typeof theme?.name === "string" ? theme.name : "";
         return themeName.includes("微信");
     }
 
-    function getLinkReferenceEnabled(themeId) {
-        if (Object.prototype.hasOwnProperty.call(state.linkReferenceOverrides, themeId)) {
-            return Boolean(state.linkReferenceOverrides[themeId]);
+    function getThemeOverrideValue(overrides, themeId) {
+        if (Object.prototype.hasOwnProperty.call(overrides, themeId)) {
+            return Boolean(overrides[themeId]);
         }
 
-        return shouldAutoEnableLinkReferences(themeId);
+        return isWechatTheme(themeId);
+    }
+
+    function getLinkReferenceEnabled(themeId) {
+        return getThemeOverrideValue(state.linkReferenceOverrides, themeId);
     }
 
     function syncLinkReferenceCheckbox(themeId) {
         refs.linkReferenceCheckbox.checked = getLinkReferenceEnabled(themeId);
     }
 
-    function shouldAutoEnableWechatAdaptation(themeId) {
-        const theme = findThemeById(themeId);
-        const themeName = typeof theme?.name === "string" ? theme.name : "";
-        return themeName.includes("微信");
-    }
-
     function getWechatAdaptationEnabled(themeId) {
-        if (Object.prototype.hasOwnProperty.call(state.wechatAdaptationOverrides, themeId)) {
-            return Boolean(state.wechatAdaptationOverrides[themeId]);
-        }
-
-        return shouldAutoEnableWechatAdaptation(themeId);
+        return getThemeOverrideValue(state.wechatAdaptationOverrides, themeId);
     }
 
     function syncWechatAdaptationCheckbox(themeId) {
@@ -166,11 +171,10 @@
         findThemeById,
         findCodeThemeById,
         updateWebviewState,
+        setUploadButtonEnabled,
         syncSettingsHeight,
-        shouldAutoEnableLinkReferences,
         getLinkReferenceEnabled,
         syncLinkReferenceCheckbox,
-        shouldAutoEnableWechatAdaptation,
         getWechatAdaptationEnabled,
         syncWechatAdaptationCheckbox,
         normalizeLineIndent

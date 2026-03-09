@@ -71,6 +71,16 @@
         return Boolean(linkText) && linkText !== href;
     }
 
+    function populateSelectOptions(select, items) {
+        select.innerHTML = "";
+        items.forEach((item) => {
+            const option = document.createElement("option");
+            option.value = item.id;
+            option.textContent = item.name;
+            select.appendChild(option);
+        });
+    }
+
     function applyTheme(themeId) {
         app.state.selectedThemeId = themeId;
         const theme = app.findThemeById(themeId);
@@ -88,13 +98,7 @@
             app.state.currentThemes = [{ id: "default", name: "默认" }];
         }
 
-        app.refs.themeSelect.innerHTML = "";
-        app.state.currentThemes.forEach((theme) => {
-            const option = document.createElement("option");
-            option.value = theme.id;
-            option.textContent = theme.name;
-            app.refs.themeSelect.appendChild(option);
-        });
+        populateSelectOptions(app.refs.themeSelect, app.state.currentThemes);
 
         if (typeof nextSelectedThemeId === "string" && nextSelectedThemeId) {
             app.state.selectedThemeId = nextSelectedThemeId;
@@ -109,22 +113,13 @@
         applyTheme(app.state.selectedThemeId);
         app.syncLinkReferenceCheckbox(app.state.selectedThemeId);
         app.syncWechatAdaptationCheckbox(app.state.selectedThemeId);
-        if (app.state.latestMarkdownHtml) {
-            renderMarkdownToPreview(app.state.latestMarkdownHtml);
-        }
     }
 
     function setCodeThemeOptions(codeThemes, nextSelectedCodeThemeId) {
         app.state.currentCodeThemes = Array.isArray(codeThemes) ? codeThemes : [];
         const allOptions = [{ id: "default", name: "默认" }, ...app.state.currentCodeThemes];
 
-        app.refs.codeThemeSelect.innerHTML = "";
-        allOptions.forEach((theme) => {
-            const option = document.createElement("option");
-            option.value = theme.id;
-            option.textContent = theme.name;
-            app.refs.codeThemeSelect.appendChild(option);
-        });
+        populateSelectOptions(app.refs.codeThemeSelect, allOptions);
 
         if (typeof nextSelectedCodeThemeId === "string" && nextSelectedCodeThemeId) {
             app.state.selectedCodeThemeId = nextSelectedCodeThemeId;
@@ -154,19 +149,14 @@
         app.syncSettingsHeight();
 
         const hostItems = Array.isArray(hosts) ? hosts : [];
-        app.refs.imageHostSelect.innerHTML = "";
-
-        hostItems.forEach((host) => {
-            const option = document.createElement("option");
-            option.value = host.id;
-            option.textContent = host.name || host.id;
-            app.refs.imageHostSelect.appendChild(option);
-        });
+        populateSelectOptions(app.refs.imageHostSelect, hostItems.map((host) => ({
+            id: host.id,
+            name: host.name || host.id
+        })));
 
         if (!app.state.isImageHostEnabled || hostItems.length === 0) {
             app.state.selectedImageHostId = "";
-            app.refs.uploadImagesButton.setAttribute("disabled", "disabled");
-            app.refs.uploadImagesButton.setAttribute("aria-disabled", "true");
+            app.setUploadButtonEnabled(false);
             app.updateWebviewState();
             return;
         }
@@ -181,8 +171,7 @@
         }
 
         app.refs.imageHostSelect.value = app.state.selectedImageHostId;
-        app.refs.uploadImagesButton.removeAttribute("disabled");
-        app.refs.uploadImagesButton.removeAttribute("aria-disabled");
+        app.setUploadButtonEnabled(true);
         app.updateWebviewState();
     }
 
@@ -242,6 +231,7 @@
     function applyInlineThemeAndTypography(container) {
         const theme = app.findThemeById(app.state.selectedThemeId);
         const rootFontFamily = getSelectedFontFamily();
+        const fontSize = app.refs.fontSizeSelect.value;
 
         const root = document.createElement("div");
         root.innerHTML = container.innerHTML;
@@ -251,7 +241,7 @@
         });
 
         appendInlineStyle(root, `font-family: ${rootFontFamily};`);
-        appendInlineStyle(root, `font-size: ${app.refs.fontSizeSelect.value}px;`);
+        appendInlineStyle(root, `font-size: ${fontSize}px;`);
         appendInlineStyle(root, "line-height: 1.8;");
         appendInlineStyle(root, "color: #2f2f2f;");
         appendInlineStyle(root, "word-break: break-word;");
@@ -261,7 +251,7 @@
 
         root.querySelectorAll("p, li, blockquote, td, th").forEach((node) => {
             appendInlineStyle(node, `font-family: ${rootFontFamily};`);
-            appendInlineStyle(node, `font-size: ${app.refs.fontSizeSelect.value}px;`);
+            appendInlineStyle(node, `font-size: ${fontSize}px;`);
         });
 
         root.querySelectorAll("h1, h2, h3, h4, h5, h6, a, strong, em").forEach((node) => {

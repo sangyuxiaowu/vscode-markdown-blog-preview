@@ -404,8 +404,10 @@
         if (!styleText) {
             return;
         }
-        const current = target.getAttribute("style") || "";
-        target.setAttribute("style", `${current} ${styleText}`.trim());
+
+        // Merge styles through CSSOM so repeated declarations are collapsed
+        // and the latest value wins.
+        target.style.cssText = `${target.style.cssText}; ${styleText}`;
     }
 
     function applyStyleMap(target, style) {
@@ -419,6 +421,9 @@
 
     function applyBaseInlineStyles(root) {
         root.querySelectorAll("*").forEach((node) => {
+            if (node.closest("[data-mdbp-code-block]")) {
+                return;
+            }
             appendInlineStyle(node, "word-break: break-word;");
         });
 
@@ -435,7 +440,7 @@
             appendInlineStyle(blockquote, "margin: 0.9em 0; padding: 0.25em 0 0.25em 0.9em; border-left: 4px solid #d0d7de; color: #57606a; background: #f6f8fa;");
         });
         root.querySelectorAll("pre").forEach((pre) => {
-            appendInlineStyle(pre, "overflow: auto;");
+            appendInlineStyle(pre, "ooverflow-x: scroll;");
         });
     }
 
@@ -759,24 +764,19 @@
             pre.setAttribute("data-mdbp-code-block", "");
             code.setAttribute("data-mdbp-code-content", "");
 
-            pre.setAttribute(
-                "style",
-                "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;"
-            );
-            code.setAttribute(
-                "style",
-                `display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; white-space: pre; font-family: ${FIXED_CODE_FONT};`
-            );
+            pre.setAttribute("style","");
+            appendInlineStyle(pre, "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;");
+
+            code.setAttribute("style", "");
+            appendInlineStyle(code, `display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; font-family: ${FIXED_CODE_FONT};`);
         });
 
         const inlineCodes = container.querySelectorAll("code:not(pre > code)");
         const inlineCodeStyle = Object.assign({}, defaultInlineCodeStyle, normalizeStyleObject(theme?.inlineCodeStyle));
         const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
         inlineCodes.forEach(code => {
-            code.setAttribute(
-                "style",
-                `${inlineCodeStyleText} font-family: ${FIXED_CODE_FONT};`
-            );
+            code.setAttribute("style", "");
+            appendInlineStyle(code, `${inlineCodeStyleText} font-family: ${FIXED_CODE_FONT};`);
         });
 
         return container;
@@ -824,6 +824,7 @@
             }
         });
 
+        // 将空格转换为不间断空格，防止微信编辑器自动去除行首的空格导致格式错乱
         root.querySelectorAll("pre > code").forEach((code) => {
             const textNodes = [];
             const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);

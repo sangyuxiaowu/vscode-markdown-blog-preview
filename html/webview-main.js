@@ -120,72 +120,6 @@
         refs.wechatAdaptationCheckbox.checked = getWechatAdaptationEnabled(themeId);
     }
 
-    function normalizeStyleObject(style) {
-        if (!style || typeof style !== "object") {
-            return {};
-        }
-
-        const result = {};
-        Object.entries(style).forEach(([key, value]) => {
-            if (typeof value === "string") {
-                result[key] = value;
-            }
-        });
-        return result;
-    }
-
-    function styleObjectToCss(style) {
-        const entries = Object.entries(normalizeStyleObject(style));
-        if (entries.length === 0) {
-            return "";
-        }
-        return entries.map(([key, value]) => `${key}: ${value};`).join(" ");
-    }
-
-    function appendInlineStyle(target, styleText) {
-        if (!styleText) {
-            return;
-        }
-        target.style.cssText = `${target.style.cssText}; ${styleText}`;
-    }
-
-    function applyStyleMap(target, style) {
-        const cssText = styleObjectToCss(style);
-        appendInlineStyle(target, cssText);
-    }
-
-    function getSelectedFontFamily() {
-        return refs.fontFamilySelect.value === "serif" ? constants.CONTENT_FONT_SERIF : constants.CONTENT_FONT_SANS;
-    }
-
-    function isExternalHttpLink(href) {
-        try {
-            const parsedUrl = new URL(href);
-            return parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
-        } catch {
-            return false;
-        }
-    }
-
-    function shouldConvertLink(anchor) {
-        const href = (anchor.getAttribute("href") || "").trim();
-        if (!href || !isExternalHttpLink(href)) {
-            return false;
-        }
-
-        try {
-            const parsedUrl = new URL(href);
-            if (parsedUrl.hostname.toLowerCase() === "mp.weixin.qq.com") {
-                return false;
-            }
-        } catch {
-            return false;
-        }
-
-        const linkText = (anchor.textContent || "").replace(/\s+/g, " ").trim();
-        return Boolean(linkText) && linkText !== href;
-    }
-
     function normalizeLineIndent(text) {
         const NBSP = "\u00A0";
         const tabAsSpaces = `${NBSP}${NBSP}${NBSP}${NBSP}`;
@@ -239,13 +173,6 @@
         shouldAutoEnableWechatAdaptation,
         getWechatAdaptationEnabled,
         syncWechatAdaptationCheckbox,
-        normalizeStyleObject,
-        styleObjectToCss,
-        appendInlineStyle,
-        applyStyleMap,
-        getSelectedFontFamily,
-        isExternalHttpLink,
-        shouldConvertLink,
         normalizeLineIndent
     };
 })();

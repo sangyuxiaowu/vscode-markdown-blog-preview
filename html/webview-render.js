@@ -43,27 +43,30 @@
             : app.constants.CONTENT_FONT_SANS;
     }
 
-    function isExternalHttpLink(href) {
+    function parseHttpUrl(href) {
         try {
             const parsedUrl = new URL(href);
-            return parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
+            if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
+                return parsedUrl;
+            }
+            return null;
         } catch {
-            return false;
+            return null;
         }
     }
 
     function shouldConvertLink(anchor) {
         const href = (anchor.getAttribute("href") || "").trim();
-        if (!href || !isExternalHttpLink(href)) {
+        if (!href) {
             return false;
         }
 
-        try {
-            const parsedUrl = new URL(href);
-            if (parsedUrl.hostname.toLowerCase() === "mp.weixin.qq.com") {
-                return false;
-            }
-        } catch {
+        const parsedUrl = parseHttpUrl(href);
+        if (!parsedUrl) {
+            return false;
+        }
+
+        if (parsedUrl.hostname.toLowerCase() === "mp.weixin.qq.com") {
             return false;
         }
 
@@ -79,6 +82,52 @@
             option.textContent = item.name;
             select.appendChild(option);
         });
+    }
+
+    function resolveSelectedId(items, preferredId, fallbackId) {
+        if (typeof preferredId === "string" && preferredId && items.some((item) => item.id === preferredId)) {
+            return preferredId;
+        }
+
+        return fallbackId;
+    }
+
+    function applyFontFamily(root, selector, fontFamily) {
+        root.querySelectorAll(selector).forEach((node) => {
+            appendInlineStyle(node, `font-family: ${fontFamily};`);
+        });
+    }
+
+    function applyFontSizeStyle(root, selector, fontSize) {
+        root.querySelectorAll(selector).forEach((node) => {
+            appendInlineStyle(node, `font-size: ${fontSize}px;`);
+        });
+    }
+
+    function applyThemeElementStyles(root, elementStyles) {
+        if (!elementStyles || typeof elementStyles !== "object") {
+            return;
+        }
+
+        Object.entries(elementStyles).forEach(([selector, styleMap]) => {
+            if (!selector) {
+                return;
+            }
+            root.querySelectorAll(selector).forEach((node) => {
+                applyStyleMap(node, styleMap);
+            });
+        });
+
+        if (elementStyles.a) {
+            root.querySelectorAll("[data-mdbp-link-text]").forEach((node) => {
+                applyStyleMap(node, elementStyles.a);
+            });
+        }
+    }
+
+    function applyCodeFontFamily(root) {
+        applyFontFamily(root, "pre > code", app.constants.FIXED_CODE_FONT);
+        applyFontFamily(root, "code:not(pre > code)", app.constants.FIXED_CODE_FONT);
     }
 
     function applyTheme(themeId) {
@@ -100,14 +149,11 @@
 
         populateSelectOptions(app.refs.themeSelect, app.state.currentThemes);
 
-        if (typeof nextSelectedThemeId === "string" && nextSelectedThemeId) {
-            app.state.selectedThemeId = nextSelectedThemeId;
-        }
-
-        const available = app.state.currentThemes.some((theme) => theme.id === app.state.selectedThemeId);
-        if (!available) {
-            app.state.selectedThemeId = app.state.currentThemes[0].id;
-        }
+        app.state.selectedThemeId = resolveSelectedId(
+            app.state.currentThemes,
+            nextSelectedThemeId || app.state.selectedThemeId,
+            app.state.currentThemes[0].id
+        );
 
         app.refs.themeSelect.value = app.state.selectedThemeId;
         applyTheme(app.state.selectedThemeId);
@@ -121,14 +167,11 @@
 
         populateSelectOptions(app.refs.codeThemeSelect, allOptions);
 
-        if (typeof nextSelectedCodeThemeId === "string" && nextSelectedCodeThemeId) {
-            app.state.selectedCodeThemeId = nextSelectedCodeThemeId;
-        }
-
-        const available = allOptions.some((theme) => theme.id === app.state.selectedCodeThemeId);
-        if (!available) {
-            app.state.selectedCodeThemeId = "default";
-        }
+        app.state.selectedCodeThemeId = resolveSelectedId(
+            allOptions,
+            nextSelectedCodeThemeId || app.state.selectedCodeThemeId,
+            "default"
+        );
 
         app.refs.codeThemeSelect.value = app.state.selectedCodeThemeId;
     }
@@ -161,14 +204,11 @@
             return;
         }
 
-        if (typeof nextSelectedHostId === "string" && nextSelectedHostId) {
-            app.state.selectedImageHostId = nextSelectedHostId;
-        }
-
-        const hostExists = hostItems.some((host) => host.id === app.state.selectedImageHostId);
-        if (!hostExists) {
-            app.state.selectedImageHostId = hostItems[0].id;
-        }
+        app.state.selectedImageHostId = resolveSelectedId(
+            hostItems,
+            nextSelectedHostId || app.state.selectedImageHostId,
+            hostItems[0].id
+        );
 
         app.refs.imageHostSelect.value = app.state.selectedImageHostId;
         app.setUploadButtonEnabled(true);
@@ -249,43 +289,52 @@
 
         applyBaseInlineStyles(root);
 
-        root.querySelectorAll("p, li, blockquote, td, th").forEach((node) => {
-            appendInlineStyle(node, `font-family: ${rootFontFamily};`);
-            appendInlineStyle(node, `font-size: ${fontSize}px;`);
-        });
-
-        root.querySelectorAll("h1, h2, h3, h4, h5, h6, a, strong, em").forEach((node) => {
-            appendInlineStyle(node, `font-family: ${rootFontFamily};`);
-        });
-
-        const elementStyles = theme?.elementStyles;
-        if (elementStyles && typeof elementStyles === "object") {
-            Object.entries(elementStyles).forEach(([selector, styleMap]) => {
-                if (!selector) {
-                    return;
-                }
-                root.querySelectorAll(selector).forEach((node) => {
-                    applyStyleMap(node, styleMap);
-                });
-            });
-
-            if (elementStyles.a) {
-                root.querySelectorAll("[data-mdbp-link-text]").forEach((node) => {
-                    applyStyleMap(node, elementStyles.a);
-                });
-            }
-        }
-
-        root.querySelectorAll("pre > code").forEach((code) => {
-            appendInlineStyle(code, `font-family: ${app.constants.FIXED_CODE_FONT};`);
-        });
-        root.querySelectorAll("code:not(pre > code)").forEach((code) => {
-            appendInlineStyle(code, `font-family: ${app.constants.FIXED_CODE_FONT};`);
-        });
+        applyFontFamily(root, "p, li, blockquote, td, th", rootFontFamily);
+        applyFontSizeStyle(root, "p, li, blockquote, td, th", fontSize);
+        applyFontFamily(root, "h1, h2, h3, h4, h5, h6, a, strong, em", rootFontFamily);
+        applyThemeElementStyles(root, theme?.elementStyles);
+        applyCodeFontFamily(root);
 
         applyCodeThemeStyles(root);
 
         return root;
+    }
+
+    function appendReferenceItem(paragraph, reference, isLast) {
+        const code = document.createElement("em");
+        code.textContent = `[${reference.index}]`;
+        code.setAttribute("data-mdbp-references-index", "");
+
+        const url = document.createElement("i");
+        url.textContent = reference.href;
+        url.setAttribute("data-mdbp-references-url", "");
+
+        paragraph.appendChild(code);
+        paragraph.appendChild(document.createTextNode(` ${reference.text}: `));
+        paragraph.appendChild(url);
+
+        if (!isLast) {
+            paragraph.appendChild(document.createElement("br"));
+        }
+    }
+
+    function buildReferencesSection(references) {
+        const section = document.createElement("section");
+        section.setAttribute("data-mdbp-references", "");
+
+        const title = document.createElement("h3");
+        title.textContent = "References";
+        title.setAttribute("data-mdbp-references-title", "");
+        section.appendChild(title);
+
+        const paragraph = document.createElement("p");
+        paragraph.setAttribute("data-mdbp-references-list", "");
+        references.forEach((reference, index) => {
+            appendReferenceItem(paragraph, reference, index === references.length - 1);
+        });
+
+        section.appendChild(paragraph);
+        return section;
     }
 
     function convertExternalLinksToReferences(container) {
@@ -329,34 +378,73 @@
             return;
         }
 
-        const section = document.createElement("section");
-        section.setAttribute("data-mdbp-references", "");
-        const title = document.createElement("h3");
-        title.textContent = "References";
-        title.setAttribute("data-mdbp-references-title", "");
-        section.appendChild(title);
+        container.appendChild(buildReferencesSection(references));
+    }
 
-        const paragraph = document.createElement("p");
-        paragraph.setAttribute("data-mdbp-references-list", "");
-        references.forEach((reference, index) => {
-            const code = document.createElement("em");
-            code.textContent = `[${reference.index}]`;
-            code.setAttribute("data-mdbp-references-index", "");
+    function wrapImageWithCaption(img) {
+        if (img.closest("figure")) {
+            return;
+        }
 
-            const url = document.createElement("i");
-            url.textContent = reference.href;
-            url.setAttribute("data-mdbp-references-url", "");
+        const altText = (img.getAttribute("alt") || "").trim();
+        const titleText = (img.getAttribute("title") || "").trim();
+        const captionText = altText || titleText;
+        if (!captionText) {
+            return;
+        }
 
-            paragraph.appendChild(code);
-            paragraph.appendChild(document.createTextNode(` ${reference.text}: `));
-            paragraph.appendChild(url);
+        const figure = document.createElement("figure");
+        const figcaption = document.createElement("figcaption");
+        figcaption.textContent = captionText;
+        const parent = img.parentElement;
 
-            if (index < references.length - 1) {
-                paragraph.appendChild(document.createElement("br"));
+        if (parent && parent.tagName.toLowerCase() === "p") {
+            const onlyImageInParagraph = Array.from(parent.childNodes).every((node) => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    return node === img;
+                }
+                if (node.nodeType === Node.TEXT_NODE) {
+                    return !(node.textContent || "").trim();
+                }
+                return true;
+            });
+
+            if (onlyImageInParagraph && parent.parentNode) {
+                parent.parentNode.replaceChild(figure, parent);
+            } else {
+                parent.insertBefore(figure, img);
+                parent.removeChild(img);
             }
-        });
-        section.appendChild(paragraph);
-        container.appendChild(section);
+        } else if (parent) {
+            parent.insertBefore(figure, img);
+            parent.removeChild(img);
+        }
+
+        figure.appendChild(img);
+        figure.appendChild(figcaption);
+    }
+
+    function styleBlockCode(code) {
+        const pre = code.parentElement;
+        if (!pre) {
+            return;
+        }
+
+        pre.setAttribute("data-mdbp-code-block", "");
+        code.setAttribute("data-mdbp-code-content", "");
+
+        pre.setAttribute("style", "");
+        appendInlineStyle(pre, "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;");
+
+        code.setAttribute("style", "");
+        appendInlineStyle(code, `display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; font-family: ${app.constants.FIXED_CODE_FONT};`);
+    }
+
+    function styleInlineCode(code, theme) {
+        const inlineCodeStyle = Object.assign({}, app.constants.defaultInlineCodeStyle, normalizeStyleObject(theme?.inlineCodeStyle));
+        const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
+        code.setAttribute("style", "");
+        appendInlineStyle(code, `${inlineCodeStyleText} font-family: ${app.constants.FIXED_CODE_FONT};`);
     }
 
     function applyWechatCodeBlockFormat(rawHtml) {
@@ -366,73 +454,16 @@
 
         convertExternalLinksToReferences(container);
 
-        const images = container.querySelectorAll("img");
-        images.forEach((img) => {
-            if (img.closest("figure")) {
-                return;
-            }
-
-            const altText = (img.getAttribute("alt") || "").trim();
-            const titleText = (img.getAttribute("title") || "").trim();
-            const captionText = altText || titleText;
-            if (!captionText) {
-                return;
-            }
-
-            const figure = document.createElement("figure");
-            const figcaption = document.createElement("figcaption");
-            figcaption.textContent = captionText;
-            const parent = img.parentElement;
-
-            if (parent && parent.tagName.toLowerCase() === "p") {
-                const onlyImageInParagraph = Array.from(parent.childNodes).every((node) => {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        return node === img;
-                    }
-                    if (node.nodeType === Node.TEXT_NODE) {
-                        return !(node.textContent || "").trim();
-                    }
-                    return true;
-                });
-
-                if (onlyImageInParagraph && parent.parentNode) {
-                    parent.parentNode.replaceChild(figure, parent);
-                } else {
-                    parent.insertBefore(figure, img);
-                    parent.removeChild(img);
-                }
-            } else if (parent) {
-                parent.insertBefore(figure, img);
-                parent.removeChild(img);
-            }
-
-            figure.appendChild(img);
-            figure.appendChild(figcaption);
+        container.querySelectorAll("img").forEach((img) => {
+            wrapImageWithCaption(img);
         });
 
-        const blockCodes = container.querySelectorAll("pre > code");
-        blockCodes.forEach((code) => {
-            const pre = code.parentElement;
-            if (!pre) {
-                return;
-            }
-
-            pre.setAttribute("data-mdbp-code-block", "");
-            code.setAttribute("data-mdbp-code-content", "");
-
-            pre.setAttribute("style", "");
-            appendInlineStyle(pre, "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;");
-
-            code.setAttribute("style", "");
-            appendInlineStyle(code, `display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; font-family: ${app.constants.FIXED_CODE_FONT};`);
+        container.querySelectorAll("pre > code").forEach((code) => {
+            styleBlockCode(code);
         });
 
-        const inlineCodes = container.querySelectorAll("code:not(pre > code)");
-        const inlineCodeStyle = Object.assign({}, app.constants.defaultInlineCodeStyle, normalizeStyleObject(theme?.inlineCodeStyle));
-        const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
-        inlineCodes.forEach((code) => {
-            code.setAttribute("style", "");
-            appendInlineStyle(code, `${inlineCodeStyleText} font-family: ${app.constants.FIXED_CODE_FONT};`);
+        container.querySelectorAll("code:not(pre > code)").forEach((code) => {
+            styleInlineCode(code, theme);
         });
 
         return container;

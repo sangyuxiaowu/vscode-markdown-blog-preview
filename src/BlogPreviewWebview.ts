@@ -19,7 +19,7 @@ const rust = require("highlight.js/lib/languages/rust");
 const sql = require("highlight.js/lib/languages/sql");
 const typescript = require("highlight.js/lib/languages/typescript");
 const xml = require("highlight.js/lib/languages/xml");
-const h_yaml = require("highlight.js/lib/languages/yaml");
+const yamlLanguage = require("highlight.js/lib/languages/yaml");
 
 interface ThemeConfigItem {
     id: string;
@@ -47,8 +47,6 @@ interface ImageHostInfo {
 
 interface UploadedImageInfo {
     imageUrl: string;
-    imageId?: string;
-    uploadedAt: string;
 }
 
 interface ParsedFrontMatter {
@@ -99,8 +97,8 @@ hljs.registerLanguage("tsx", typescript);
 hljs.registerLanguage("html", xml);
 hljs.registerLanguage("xml", xml);
 hljs.registerLanguage("svg", xml);
-hljs.registerLanguage("yaml", h_yaml);
-hljs.registerLanguage("yml", h_yaml);
+hljs.registerLanguage("yaml", yamlLanguage);
+hljs.registerLanguage("yml", yamlLanguage);
 
 class BlogView{
     context: vscode.ExtensionContext;
@@ -273,19 +271,10 @@ class BlogView{
 
                     const normalizedSrc = this.normalizeLocalKey(srcValue);
                     const hostedInfo = imageHostData.images[normalizedSrc];
-                    const coverUrl = imageHostData.cover?.localPath === normalizedSrc
-                        ? imageHostData.cover.imageUrl
-                        : undefined;
 
                     if (hostedInfo?.imageUrl) {
                         const replacedHostedTag = imgArr[i].replace(src[1], hostedInfo.imageUrl);
                         data = data.replace(imgArr[i], replacedHostedTag);
-                        continue;
-                    }
-
-                    if (coverUrl) {
-                        const replacedCoverTag = imgArr[i].replace(src[1], coverUrl);
-                        data = data.replace(imgArr[i], replacedCoverTag);
                         continue;
                     }
 
@@ -441,7 +430,7 @@ class BlogView{
 
     getImageHostData(frontMatter: Record<string, unknown>, hostId: string): {
         images: Record<string, UploadedImageInfo>;
-        cover?: { localPath: string; imageUrl: string; imageId?: string; uploadedAt?: string };
+        coverRef?: string;
     } {
         if (!hostId) {
             return { images: {} };
@@ -455,32 +444,19 @@ class BlogView{
         const images: Record<string, UploadedImageInfo> = {};
         Object.entries(imagesRaw).forEach(([localPath, value]) => {
             const normalized = this.normalizeLocalKey(localPath);
-            const item = this.toRecord(value);
-            const imageUrl = typeof item.imageUrl === "string" ? item.imageUrl : "";
+            const imageUrl = typeof value === "string" ? value : "";
             if (!imageUrl) {
                 return;
             }
 
             images[normalized] = {
-                imageUrl,
-                imageId: typeof item.imageId === "string" ? item.imageId : undefined,
-                uploadedAt: typeof item.uploadedAt === "string" ? item.uploadedAt : ""
+                imageUrl
             };
         });
 
-        const coverRaw = this.toRecord(hostData.cover);
-        const coverLocalPath = typeof coverRaw.localPath === "string" ? this.normalizeLocalKey(coverRaw.localPath) : "";
-        const coverImageUrl = typeof coverRaw.imageUrl === "string" ? coverRaw.imageUrl : "";
-        const cover = coverLocalPath && coverImageUrl
-            ? {
-                localPath: coverLocalPath,
-                imageUrl: coverImageUrl,
-                imageId: typeof coverRaw.imageId === "string" ? coverRaw.imageId : undefined,
-                uploadedAt: typeof coverRaw.uploadedAt === "string" ? coverRaw.uploadedAt : undefined
-            }
-            : undefined;
+        const coverRef = typeof hostData.coverRef === "string" ? this.normalizeLocalKey(hostData.coverRef) : undefined;
 
-        return { images, cover };
+        return { images, coverRef };
     }
 
     normalizeLocalKey(value: string): string {
@@ -836,12 +812,11 @@ class BlogView{
                 return;
             }
 
-            const uploadedNow: Array<{ localPath: string; imageUrl: string; imageId?: string }> = [];
+            const uploadedNow: Array<{ localPath: string; imageUrl: string }> = [];
             const skipped: string[] = [];
             const failed: string[] = [];
             for (const localPath of localImageKeys) {
-                const alreadyUploaded = imageHostData.images[localPath]?.imageUrl
-                    || (imageHostData.cover?.localPath === localPath && imageHostData.cover.imageUrl);
+                const alreadyUploaded = imageHostData.images[localPath]?.imageUrl;
                 if (alreadyUploaded) {
                     skipped.push(localPath);
                     continue;
@@ -864,8 +839,7 @@ class BlogView{
 
                 uploadedNow.push({
                     localPath,
-                    imageUrl: uploadResult.imageUrl,
-                    imageId: uploadResult.imageId
+                    imageUrl: uploadResult.imageUrl
                 });
             }
 
@@ -999,7 +973,7 @@ class BlogView{
     applyUploadedMappingsToFrontMatter(
         frontMatter: Record<string, unknown>,
         hostId: string,
-        uploadedMappings: Array<{ localPath: string; imageUrl: string; imageId?: string }>,
+        uploadedMappings: Array<{ localPath: string; imageUrl: string }>,
         coverLocalPath: string
     ): Record<string, unknown> {
         const nextFrontMatter: Record<string, unknown> = { ...frontMatter };
@@ -1012,22 +986,13 @@ class BlogView{
 
         uploadedMappings.forEach((item) => {
             const normalizedLocal = this.normalizeLocalKey(item.localPath);
-            const uploadedItem = {
-                imageUrl: item.imageUrl,
-                imageId: item.imageId,
-                uploadedAt: now
-            };
-
-            images[normalizedLocal] = uploadedItem;
-            if (coverLocalPath && normalizedLocal === coverLocalPath) {
-                hostData.cover = {
-                    localPath: normalizedLocal,
-                    imageUrl: item.imageUrl,
-                    imageId: item.imageId,
-                    uploadedAt: now
-                };
-            }
+            images[normalizedLocal] = item.imageUrl;
         });
+
+        if (coverLocalPath) {
+            hostData.coverRef = coverLocalPath;
+        }
+        hostData.updatedAt = now;
 
         hostData.images = images;
         imageHosts[hostId] = hostData;

@@ -19,7 +19,7 @@
         return result;
     }
 
-    // 合并两个样式对象
+    // 合并两个样式对象，后者覆盖前者
     function mergeStyleObject(baseStyle, overrideStyle) {
         return {
             ...normalizeStyleObject(baseStyle),
@@ -27,7 +27,7 @@
         };
     }
 
-    // 合并嵌套的样式对象
+    // 合并嵌套的样式对象，如 elementStyles.a、elementStyles.blockquote 等，后者覆盖前者
     function mergeNestedStyleObject(baseStyle, overrideStyle) {
         const base = baseStyle && typeof baseStyle === "object" ? baseStyle : {};
         const override = overrideStyle && typeof overrideStyle === "object" ? overrideStyle : {};
@@ -66,14 +66,9 @@
         appendInlineStyle(target, styleObjectToCss(style));
     }
 
-    // 获取默认主题
-    function getDefaultTheme() {
-        return app.findThemeById("default") || app.state.currentThemes[0];
-    }
-
     // 获取解析后的主题，合并默认主题和选定主题的样式
     function getResolvedTheme(themeId = app.state.selectedThemeId) {
-        const defaultTheme = getDefaultTheme();
+        const defaultTheme = app.findThemeById("default") || app.state.currentThemes[0];
         const selectedTheme = app.findThemeById(themeId) || defaultTheme;
         if (!defaultTheme && !selectedTheme) {
             return undefined;
@@ -92,6 +87,7 @@
         };
     }
 
+    // 根据当前字体选项返回正文使用的字体族
     function getSelectedFontFamily() {
         const theme = getResolvedTheme();
         return app.refs.fontFamilySelect.value === "serif"
@@ -99,6 +95,7 @@
             : (theme?.contentFontSans || "");
     }
 
+    // 解析并校验 http/https 链接，非法或非网页链接返回 null
     function parseHttpUrl(href) {
         try {
             const parsedUrl = new URL(href);
@@ -111,6 +108,7 @@
         }
     }
 
+    // 判断链接是否需要转换为参考文献脚注
     function shouldConvertLink(anchor) {
         const href = (anchor.getAttribute("href") || "").trim();
         if (!href) {
@@ -130,6 +128,7 @@
         return Boolean(linkText) && linkText !== href;
     }
 
+    // 用给定数据重新填充下拉框选项
     function populateSelectOptions(select, items) {
         select.innerHTML = "";
         items.forEach((item) => {
@@ -140,6 +139,7 @@
         });
     }
 
+    // 在可选项中解析最终选中的 id，不合法时退回默认值
     function resolveSelectedId(items, preferredId, fallbackId) {
         if (typeof preferredId === "string" && preferredId && items.some((item) => item.id === preferredId)) {
             return preferredId;
@@ -148,18 +148,21 @@
         return fallbackId;
     }
 
+    // 为指定选择器匹配到的节点统一追加字体族样式
     function applyFontFamily(root, selector, fontFamily) {
         root.querySelectorAll(selector).forEach((node) => {
             appendInlineStyle(node, `font-family: ${fontFamily};`);
         });
     }
 
+    // 为指定选择器匹配到的节点统一追加字号样式
     function applyFontSizeStyle(root, selector, fontSize) {
         root.querySelectorAll(selector).forEach((node) => {
             appendInlineStyle(node, `font-size: ${fontSize}px;`);
         });
     }
 
+    // 按主题配置对各类元素选择器应用样式
     function applyThemeElementStyles(root, elementStyles) {
         if (!elementStyles || typeof elementStyles !== "object") {
             return;
@@ -181,6 +184,7 @@
         }
     }
 
+    // 为块级代码和内联代码统一应用等宽字体
     function applyCodeFontFamily(root) {
         const theme = getResolvedTheme();
         if (!theme?.fixedCodeFont) {
@@ -191,6 +195,7 @@
         applyFontFamily(root, "code:not(pre > code)", theme.fixedCodeFont);
     }
 
+    // 切换主题并刷新预览区域的字号与样式
     function applyTheme(themeId) {
         app.state.selectedThemeId = themeId;
         const theme = getResolvedTheme(themeId);
@@ -201,6 +206,7 @@
         applyFontSize(app.refs.fontSizeSelect.value);
     }
 
+    // 设置主题下拉框选项并同步当前主题状态
     function setThemeOptions(themes, nextSelectedThemeId) {
         app.state.currentThemes = Array.isArray(themes) ? themes : [];
 
@@ -222,6 +228,7 @@
         app.syncWechatAdaptationCheckbox(app.state.selectedThemeId);
     }
 
+    // 设置代码主题下拉框选项并同步当前代码主题状态
     function setCodeThemeOptions(codeThemes, nextSelectedCodeThemeId) {
         app.state.currentCodeThemes = Array.isArray(codeThemes) ? codeThemes : [];
         const allOptions = [{ id: "default", name: "默认" }, ...app.state.currentCodeThemes];
@@ -237,6 +244,7 @@
         app.refs.codeThemeSelect.value = app.state.selectedCodeThemeId;
     }
 
+    // 校验字号输入，合法时重新渲染预览
     function applyFontSize(fontSize) {
         const parsed = Number(fontSize);
         if (Number.isNaN(parsed) || parsed <= 0) {
@@ -247,6 +255,7 @@
         }
     }
 
+    // 设置图床相关控件状态，并同步当前选中的图床配置
     function setImageHostOptions(enabled, hosts, nextSelectedHostId) {
         app.state.isImageHostEnabled = Boolean(enabled);
         app.refs.imageHostRow.style.display = app.state.isImageHostEnabled ? "flex" : "none";
@@ -276,6 +285,7 @@
         app.updateWebviewState();
     }
 
+    // 为常见基础元素补齐兜底内联样式，避免在目标平台丢失表现
     function applyBaseInlineStyles(root) {
         root.querySelectorAll("*").forEach((node) => {
             if (node.closest("[data-mdbp-code-block]")) {
@@ -301,6 +311,7 @@
         });
     }
 
+    // 根据当前代码主题，为代码块和高亮 token 应用样式
     function applyCodeThemeStyles(root) {
         const codeTheme = app.findCodeThemeById(app.state.selectedCodeThemeId);
         if (!codeTheme) {
@@ -329,6 +340,7 @@
         });
     }
 
+    // 将主题、字号、字体等样式全部转换为内联样式，生成最终可复制 DOM
     function applyInlineThemeAndTypography(container) {
         const theme = getResolvedTheme();
         const rootFontFamily = getSelectedFontFamily();
@@ -361,7 +373,7 @@
         return root;
     }
 
-    // 将链接转换为参考文献形式，避免微信对外链的特殊处理
+    // 将单条参考链接追加到参考文献段落中
     function appendReferenceItem(paragraph, reference, isLast) {
         const code = document.createElement("em");
         code.textContent = `[${reference.index}]`;
@@ -485,6 +497,7 @@
         figure.appendChild(figcaption);
     }
 
+    // 为块级代码预置基础样式和标记，供后续主题覆盖
     function styleBlockCode(code) {
         const theme = getResolvedTheme();
         const pre = code.parentElement;
@@ -505,6 +518,7 @@
         }
     }
 
+    // 为内联代码应用主题中的代码样式
     function styleInlineCode(code, theme) {
         const inlineCodeStyle = normalizeStyleObject(theme?.inlineCodeStyle);
         const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
@@ -515,6 +529,7 @@
         }
     }
 
+    // 区分块级代码和内联代码并分别应用格式
     function applyCodeBlockFormat(container) {
         const theme = getResolvedTheme();
         
@@ -529,7 +544,7 @@
         return container;
     }
 
-    // 微信的列表和代码片段空格修正
+    // 修正微信环境下列表结构和代码缩进，减少排版异常
     function applyFinalWechatStructure(root) {
         const blockTags = new Set(["P", "UL", "OL", "PRE", "SECTION", "TABLE", "BLOCKQUOTE", "DIV", "FIGURE", "H1", "H2", "H3", "H4", "H5", "H6"]);
 
@@ -589,7 +604,7 @@
         });
     }
 
-    // 替换空白字符为不间断空格，保持微信对代码块的缩进要求
+    // 将行首缩进替换为不间断空格，避免微信吞掉代码缩进
     function normalizeLineIndent(text) {
         const NBSP = "\u00A0";
         const tabAsSpaces = `${NBSP}${NBSP}${NBSP}${NBSP}`;
@@ -624,7 +639,7 @@
         }).join("");
     }
 
-    // 核心入口，渲染 Markdown HTML 到预览区域
+    // 将 Markdown 转换后的 HTML 渲染到预览区域，并生成可复制的最终内容
     function renderMarkdownToPreview(rawHtml) {
         if (!rawHtml) {
             app.view.shadowView.innerHTML = "";
@@ -660,7 +675,7 @@
         app.view.shadowView.appendChild(resultRoot);
     }
 
-    // 复制预览内容到剪贴板
+    // 将当前预览内容同时以 HTML 和纯文本写入剪贴板
     async function copyPreviewContent() {
         const html = app.state.latestRenderedInlineHtml || app.view.shadowView.innerHTML;
         const plainText = app.view.shadowView.textContent || "";

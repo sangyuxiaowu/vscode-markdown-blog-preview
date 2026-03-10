@@ -40,17 +40,15 @@
             : {}
     };
 
-    initializeShadowDom();
 
     // 创建 Shadow DOM 并将预览内容放入其中，隔离样式
-    function initializeShadowDom() {
-        const shadowRoot = refs.viewHost.attachShadow({ mode: "open" });
-        const shadowStyle = document.createElement("style");
-        shadowStyle.textContent = "\n        :host { display: block; }\n        #view { display: block; }\n    ";
-        const shadowView = document.createElement("div");
-        shadowView.id = "view";
-        shadowRoot.append(shadowStyle, shadowView);
-    }
+    const shadowRoot = refs.viewHost.attachShadow({ mode: "open" });
+    const shadowStyle = document.createElement("style");
+    shadowStyle.textContent = "\n        :host { display: block; }\n        #view { display: block; }\n    ";
+    const shadowView = document.createElement("div");
+    shadowView.id = "view";
+    shadowRoot.append(shadowStyle, shadowView);
+    
 
     function findThemeById(themeId) {
         return state.currentThemes.find((theme) => theme.id === themeId);

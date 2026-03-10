@@ -4,6 +4,7 @@
         return;
     }
 
+    // 规范化样式对象，确保所有属性值都是字符串
     function normalizeStyleObject(style) {
         if (!style || typeof style !== "object") {
             return {};
@@ -18,6 +19,7 @@
         return result;
     }
 
+    // 合并两个样式对象
     function mergeStyleObject(baseStyle, overrideStyle) {
         return {
             ...normalizeStyleObject(baseStyle),
@@ -25,6 +27,7 @@
         };
     }
 
+    // 合并嵌套的样式对象
     function mergeNestedStyleObject(baseStyle, overrideStyle) {
         const base = baseStyle && typeof baseStyle === "object" ? baseStyle : {};
         const override = overrideStyle && typeof overrideStyle === "object" ? overrideStyle : {};
@@ -41,6 +44,7 @@
         return result;
     }
 
+    // 将样式对象转换为 CSS 文本
     function styleObjectToCss(style) {
         const entries = Object.entries(normalizeStyleObject(style));
         if (entries.length === 0) {
@@ -49,6 +53,7 @@
         return entries.map(([key, value]) => `${key}: ${value};`).join(" ");
     }
 
+    // 追加内联样式到元素
     function appendInlineStyle(target, styleText) {
         if (!styleText) {
             return;
@@ -56,14 +61,17 @@
         target.style.cssText = `${target.style.cssText}; ${styleText}`;
     }
 
+    // 直接应用样式对象到元素
     function applyStyleMap(target, style) {
         appendInlineStyle(target, styleObjectToCss(style));
     }
 
+    // 获取默认主题
     function getDefaultTheme() {
         return app.findThemeById("default") || app.state.currentThemes[0];
     }
 
+    // 获取解析后的主题，合并默认主题和选定主题的样式
     function getResolvedTheme(themeId = app.state.selectedThemeId) {
         const defaultTheme = getDefaultTheme();
         const selectedTheme = app.findThemeById(themeId) || defaultTheme;
@@ -353,6 +361,7 @@
         return root;
     }
 
+    // 将链接转换为参考文献形式，避免微信对外链的特殊处理
     function appendReferenceItem(paragraph, reference, isLast) {
         const code = document.createElement("em");
         code.textContent = `[${reference.index}]`;
@@ -371,6 +380,7 @@
         }
     }
 
+    // 构建链接参考列表的 DOM 结构
     function buildReferencesSection(references) {
         const section = document.createElement("section");
         section.setAttribute("data-mdbp-references", "");
@@ -390,11 +400,8 @@
         return section;
     }
 
+    // 处理外部链接转换为脚注形式，避免微信对外链的特殊处理
     function convertExternalLinksToReferences(container) {
-        if (!app.refs.linkReferenceCheckbox.checked) {
-            return;
-        }
-
         const references = [];
         const referenceIndexByHref = new Map();
         const anchors = Array.from(container.querySelectorAll("a[href]"));
@@ -434,6 +441,7 @@
         container.appendChild(buildReferencesSection(references));
     }
 
+    // 图片添加题注
     function wrapImageWithCaption(img) {
         if (img.closest("figure")) {
             return;
@@ -507,17 +515,9 @@
         }
     }
 
-    function applyWechatCodeBlockFormat(rawHtml) {
-        const container = document.createElement("div");
-        container.innerHTML = rawHtml;
+    function applyCodeBlockFormat(container) {
         const theme = getResolvedTheme();
-
-        convertExternalLinksToReferences(container);
-
-        container.querySelectorAll("img").forEach((img) => {
-            wrapImageWithCaption(img);
-        });
-
+        
         container.querySelectorAll("pre > code").forEach((code) => {
             styleBlockCode(code);
         });
@@ -529,41 +529,7 @@
         return container;
     }
 
-    // 替换空白字符为不间断空格，保持微信对代码块的缩进要求
-    function normalizeLineIndent(text) {
-        const NBSP = "\u00A0";
-        const tabAsSpaces = `${NBSP}${NBSP}${NBSP}${NBSP}`;
-
-        const segments = text.split(/(\n)/);
-        let atLineStart = true;
-
-        return segments.map((segment) => {
-            if (segment === "\n") {
-                atLineStart = true;
-                return segment;
-            }
-
-            if (!atLineStart || !segment) {
-                if (segment.length > 0) {
-                    atLineStart = false;
-                }
-                return segment;
-            }
-
-            const indentMatch = segment.match(/^[ \t]+/);
-            if (!indentMatch) {
-                atLineStart = false;
-                return segment;
-            }
-
-            const indent = indentMatch[0]
-                .replace(/\t/g, tabAsSpaces)
-                .replace(/ /g, NBSP);
-            atLineStart = false;
-            return `${indent}${segment.slice(indentMatch[0].length)}`;
-        }).join("");
-    }
-
+    // 微信的列表和代码片段空格修正
     function applyFinalWechatStructure(root) {
         const blockTags = new Set(["P", "UL", "OL", "PRE", "SECTION", "TABLE", "BLOCKQUOTE", "DIV", "FIGURE", "H1", "H2", "H3", "H4", "H5", "H6"]);
 
@@ -623,6 +589,41 @@
         });
     }
 
+    // 替换空白字符为不间断空格，保持微信对代码块的缩进要求
+    function normalizeLineIndent(text) {
+        const NBSP = "\u00A0";
+        const tabAsSpaces = `${NBSP}${NBSP}${NBSP}${NBSP}`;
+
+        const segments = text.split(/(\n)/);
+        let atLineStart = true;
+
+        return segments.map((segment) => {
+            if (segment === "\n") {
+                atLineStart = true;
+                return segment;
+            }
+
+            if (!atLineStart || !segment) {
+                if (segment.length > 0) {
+                    atLineStart = false;
+                }
+                return segment;
+            }
+
+            const indentMatch = segment.match(/^[ \t]+/);
+            if (!indentMatch) {
+                atLineStart = false;
+                return segment;
+            }
+
+            const indent = indentMatch[0]
+                .replace(/\t/g, tabAsSpaces)
+                .replace(/ /g, NBSP);
+            atLineStart = false;
+            return `${indent}${segment.slice(indentMatch[0].length)}`;
+        }).join("");
+    }
+
     // 核心入口，渲染 Markdown HTML 到预览区域
     function renderMarkdownToPreview(rawHtml) {
         if (!rawHtml) {
@@ -631,8 +632,26 @@
             return;
         }
 
-        const container = applyWechatCodeBlockFormat(rawHtml);
+        const container = document.createElement("div");
+        container.innerHTML = rawHtml;
+
+        // 代码预处理
+        applyCodeBlockFormat(container);
+
+        // 外链转引用，可选项。提前标记 data-mdbp-link-text，供后续样式使用
+        if (app.refs.linkReferenceCheckbox.checked) {
+            convertExternalLinksToReferences(container);
+        }
+
+        // 图片添加题注
+        container.querySelectorAll("img").forEach((img) => {
+            wrapImageWithCaption(img);
+        });
+
+
         const resultRoot = applyInlineThemeAndTypography(container);
+
+        // 微信公众号适配
         if (app.refs.wechatAdaptationCheckbox.checked) {
             applyFinalWechatStructure(resultRoot);
         }
@@ -641,6 +660,7 @@
         app.view.shadowView.appendChild(resultRoot);
     }
 
+    // 复制预览内容到剪贴板
     async function copyPreviewContent() {
         const html = app.state.latestRenderedInlineHtml || app.view.shadowView.innerHTML;
         const plainText = app.view.shadowView.textContent || "";
@@ -649,42 +669,20 @@
             return false;
         }
 
-        if (navigator.clipboard && window.ClipboardItem) {
-            try {
-                const item = new ClipboardItem({
-                    "text/html": new Blob([html], { type: "text/html" }),
-                    "text/plain": new Blob([plainText], { type: "text/plain" })
-                });
-                await navigator.clipboard.write([item]);
-                return true;
-            } catch {
-            }
+        if (!navigator.clipboard || !window.ClipboardItem) {
+            return false;
         }
 
-        const temp = document.createElement("div");
-        temp.setAttribute("contenteditable", "true");
-        temp.style.position = "fixed";
-        temp.style.left = "-99999px";
-        temp.style.top = "0";
-        temp.innerHTML = html;
-        document.body.appendChild(temp);
-
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(temp);
-
-        if (selection) {
-            selection.removeAllRanges();
-            selection.addRange(range);
+        try {
+            const item = new ClipboardItem({
+                "text/html": new Blob([html], { type: "text/html" }),
+                "text/plain": new Blob([plainText], { type: "text/plain" })
+            });
+            await navigator.clipboard.write([item]);
+            return true;
+        } catch {
+            return false;
         }
-
-        const copied = document.execCommand("copy");
-
-        if (selection) {
-            selection.removeAllRanges();
-        }
-        document.body.removeChild(temp);
-        return copied;
     }
 
     app.render = {

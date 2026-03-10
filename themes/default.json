@@ -88,6 +88,21 @@
         "color": "#888",
         "font-size": "0.8em"
     },
+    "pre":{
+      "margin": "1em 0",
+      "padding": "12px 14px",
+      "background": "#f6f8fa",
+      "border": "1px solid #eaecef",
+      "border-radius": "6px",
+      "overflow-x": "auto"
+    },
+    "[data-mdbp-code-content]":{
+      "display": "block",
+      "color": "#24292e",
+      "background": "transparent",
+      "font-size": "13px",
+      "line-height": "1.7"
+    },
     "[data-mdbp-ref-sup]": {
       "font-size": "0.75em",
       "opacity": "0.75",

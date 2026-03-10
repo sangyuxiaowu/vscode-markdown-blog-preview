@@ -497,48 +497,24 @@
         figure.appendChild(figcaption);
     }
 
-    // 为块级代码预置基础样式和标记，供后续主题覆盖
-    function styleBlockCode(code) {
-        const theme = getResolvedTheme();
-        const pre = code.parentElement;
-        if (!pre) {
-            return;
-        }
-
-        pre.setAttribute("data-mdbp-code-block", "");
-        code.setAttribute("data-mdbp-code-content", "");
-
-        pre.setAttribute("style", "");
-        appendInlineStyle(pre, "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;");
-
-        code.setAttribute("style", "");
-        appendInlineStyle(code, "display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7;");
-        if (theme?.fixedCodeFont) {
-            appendInlineStyle(code, `font-family: ${theme.fixedCodeFont};`);
-        }
-    }
-
-    // 为内联代码应用主题中的代码样式
-    function styleInlineCode(code, theme) {
-        const inlineCodeStyle = normalizeStyleObject(theme?.inlineCodeStyle);
-        const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
-        code.setAttribute("style", "");
-        appendInlineStyle(code, inlineCodeStyleText);
-        if (theme?.fixedCodeFont) {
-            appendInlineStyle(code, `font-family: ${theme.fixedCodeFont};`);
-        }
-    }
 
     // 区分块级代码和内联代码并分别应用格式
     function applyCodeBlockFormat(container) {
         const theme = getResolvedTheme();
         
+        // 标记块级代码
         container.querySelectorAll("pre > code").forEach((code) => {
-            styleBlockCode(code);
+            code.parentElement.setAttribute("data-mdbp-code-block", "");
+            code.setAttribute("data-mdbp-code-content", "");
         });
 
+        // 内联代码应用主题配置的样式
+        const inlineCodeStyle = normalizeStyleObject(theme?.inlineCodeStyle);
+        const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
+
         container.querySelectorAll("code:not(pre > code)").forEach((code) => {
-            styleInlineCode(code, theme);
+            code.setAttribute("style", "");
+            appendInlineStyle(code, inlineCodeStyleText);
         });
 
         return container;

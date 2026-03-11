@@ -11,6 +11,7 @@
         codeThemeSelect: document.getElementById("code-theme"),
         imageHostRow: document.getElementById("image-host-row"),
         imageHostSelect: document.getElementById("image-host"),
+        watermarkStyleSelect: document.getElementById("watermark-style"),
         uploadImagesButton: document.getElementById("upload-images"),
         linkReferenceCheckbox: document.getElementById("convert-links-to-references"),
         wechatAdaptationCheckbox: document.getElementById("wechat-adaptation"),
@@ -30,7 +31,9 @@
         currentCodeThemes: [],
         selectedThemeId: "default",
         selectedCodeThemeId: "default",
+        currentWatermarkStyles: [],
         selectedImageHostId: initialState.selectedImageHostId || "",
+        selectedWatermarkStyleId: initialState.selectedWatermarkStyleId || "",
         isImageHostEnabled: false,
         linkReferenceOverrides: initialState.linkReferenceOverrides && typeof initialState.linkReferenceOverrides === "object"
             ? initialState.linkReferenceOverrides
@@ -61,6 +64,7 @@
     function updateWebviewState() {
         vscode.setState({
             selectedImageHostId: state.selectedImageHostId,
+            selectedWatermarkStyleId: state.selectedWatermarkStyleId,
             linkReferenceOverrides: state.linkReferenceOverrides,
             wechatAdaptationOverrides: state.wechatAdaptationOverrides
         });

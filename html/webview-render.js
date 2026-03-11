@@ -96,6 +96,7 @@
         setCodeThemeOptions,
         applyFontSize,
         setImageHostOptions,
+        setWatermarkStyleOptions,
         renderMarkdownToPreview,
         copyPreviewContent
     };
@@ -106,5 +107,9 @@
 
     function setImageHostOptions(enabled, hosts, nextSelectedHostId) {
         app.renderOptions.setImageHostOptions(enabled, hosts, nextSelectedHostId);
+    }
+
+    function setWatermarkStyleOptions(styles, nextSelectedWatermarkStyleId) {
+        app.renderOptions.setWatermarkStyleOptions(styles, nextSelectedWatermarkStyleId);
     }
 })();

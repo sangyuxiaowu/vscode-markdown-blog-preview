@@ -48,6 +48,11 @@ interface ImageHostInfo {
     enabled: boolean;
 }
 
+interface WatermarkStyleInfo {
+    id: string;
+    name: string;
+}
+
 interface UploadedImageInfo {
     imageUrl: string;
 }
@@ -67,6 +72,7 @@ const DEFAULT_THEME_RELATIVE_PATH = "themes/default.json";
 const SELECTED_THEME_STORAGE_KEY = "mdbp.selectedThemeId";
 const SELECTED_CODE_THEME_STORAGE_KEY = "mdbp.selectedCodeThemeId";
 const SELECTED_IMAGE_HOST_STORAGE_KEY = "mdbp.selectedImageHostId";
+const SELECTED_WATERMARK_STYLE_STORAGE_KEY = "mdbp.selectedWatermarkStyleId";
 
 hljs.registerLanguage("bash", bash);
 hljs.registerLanguage("sh", bash);
@@ -116,7 +122,9 @@ class BlogView{
     selectedThemeId: string = "default";
     selectedCodeThemeId: string = "default";
     selectedImageHostId: string = "";
+    selectedWatermarkStyleId: string = "";
     availableImageHosts: ImageHostInfo[] = [];
+    availableWatermarkStyles: WatermarkStyleInfo[] = [];
 
     configureWebviewScripts(webviewScripts: string[]) {
         webviewScripts.push("webview-main.js");
@@ -133,6 +141,7 @@ class BlogView{
         this.selectedThemeId = context.workspaceState.get<string>(SELECTED_THEME_STORAGE_KEY, "default");
         this.selectedCodeThemeId = context.workspaceState.get<string>(SELECTED_CODE_THEME_STORAGE_KEY, "default");
         this.selectedImageHostId = context.workspaceState.get<string>(SELECTED_IMAGE_HOST_STORAGE_KEY, "");
+        this.selectedWatermarkStyleId = context.workspaceState.get<string>(SELECTED_WATERMARK_STYLE_STORAGE_KEY, "");
 
         // 获取当前工作目录或编辑文件的路径
         this.currentWorkspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || "";
@@ -163,7 +172,7 @@ class BlogView{
         this.initializeWebviewHtml();
         this.registerDisposables();
         this.pushThemeConfigs();
-        void this.refreshImageHosts();
+        void this.refreshImageHostResources();
     }
     initializeWebviewHtml() {
         let loadingScriptHtml: string[] = [];
@@ -200,7 +209,7 @@ class BlogView{
                 }
 
                 if (event.affectsConfiguration("mdbp.imageHost.apiUrl") || event.affectsConfiguration("mdbp.imageHost.token")) {
-                    void this.refreshImageHosts();
+                    void this.refreshImageHostResources();
                 }
             },
             null,
@@ -325,9 +334,15 @@ class BlogView{
         const activeHostId = this.availableImageHosts.some((host) => host.id === this.selectedImageHostId)
             ? this.selectedImageHostId
             : (this.availableImageHosts[0]?.id || "");
+        const activeWatermarkStyleId = this.availableWatermarkStyles.some((style) => style.id === this.selectedWatermarkStyleId)
+            ? this.selectedWatermarkStyleId
+            : "";
 
         if (activeHostId !== this.selectedImageHostId) {
             this.persistSelectedImageHost(activeHostId);
+        }
+        if (activeWatermarkStyleId !== this.selectedWatermarkStyleId) {
+            this.persistSelectedWatermarkStyle(activeWatermarkStyleId);
         }
 
         this.view.webview.postMessage({
@@ -335,47 +350,85 @@ class BlogView{
             data: {
                 enabled: settings.enabled,
                 hosts: this.availableImageHosts,
-                selectedHostId: activeHostId
+                selectedHostId: activeHostId,
+                watermarkStyles: this.availableWatermarkStyles,
+                selectedWatermarkStyleId: activeWatermarkStyleId
             }
         });
     }
 
-    async refreshImageHosts() {
+    async refreshImageHostResources() {
         const settings = this.getImageHostSettings();
         if (!settings.enabled) {
             this.availableImageHosts = [];
+            this.availableWatermarkStyles = [];
             this.pushImageHostState();
             this.updatePreview();
             return;
         }
 
-        try {
-            const signedListUrl = this.buildSignedUrl(settings.apiUrl, "/api/imagehost/list", settings.token);
-            const response = await fetch(signedListUrl, { method: "GET" });
-            const payload = await this.parseJsonResponse<ImageHostApiErrorPayload & { data?: { hosts?: Array<Record<string, unknown>> } }>(response);
+        const [hostResult, watermarkResult] = await Promise.allSettled([
+            this.fetchAvailableImageHosts(settings.apiUrl, settings.token),
+            this.fetchAvailableWatermarkStyles(settings.apiUrl, settings.token)
+        ]);
 
-            if (!response.ok || payload.code !== 0) {
-                throw new Error(this.buildImageHostApiError("获取图床列表", response, payload));
-            }
-
-            const nextHosts = Array.isArray(payload.data?.hosts)
-                ? payload.data!.hosts!.map((host) => {
-                    const id = typeof host.id === "string" ? host.id : "";
-                    const name = typeof host.name === "string" ? host.name : id;
-                    const enabled = host.enabled !== false;
-                    return { id, name, enabled } as ImageHostInfo;
-                }).filter((host) => Boolean(host.id))
-                : [];
-
-            this.availableImageHosts = nextHosts.filter((host) => host.enabled);
-        } catch (error) {
+        if (hostResult.status === "fulfilled") {
+            this.availableImageHosts = hostResult.value;
+        } else {
             this.availableImageHosts = [];
-            const errorMessage = error instanceof Error ? error.message : "未知错误";
+            const errorMessage = hostResult.reason instanceof Error ? hostResult.reason.message : "未知错误";
             vscode.window.showWarningMessage(`图床服务不可用：${errorMessage}`);
+        }
+
+        if (watermarkResult.status === "fulfilled") {
+            this.availableWatermarkStyles = watermarkResult.value;
+        } else {
+            this.availableWatermarkStyles = [];
+            const errorMessage = watermarkResult.reason instanceof Error ? watermarkResult.reason.message : "未知错误";
+            vscode.window.showWarningMessage(`水印样式服务不可用：${errorMessage}`);
         }
 
         this.pushImageHostState();
         this.updatePreview();
+    }
+
+    async fetchAvailableImageHosts(apiUrl: string, token: string): Promise<ImageHostInfo[]> {
+        const signedListUrl = this.buildSignedUrl(apiUrl, "/api/imagehost/list", token);
+        const response = await fetch(signedListUrl, { method: "GET" });
+        const payload = await this.parseJsonResponse<ImageHostApiErrorPayload & { data?: { hosts?: Array<Record<string, unknown>> } }>(response);
+
+        if (!response.ok || payload.code !== 0) {
+            throw new Error(this.buildImageHostApiError("获取图床列表", response, payload));
+        }
+
+        const nextHosts = Array.isArray(payload.data?.hosts)
+            ? payload.data.hosts.map((host) => {
+                const id = typeof host.id === "string" ? host.id : "";
+                const name = typeof host.name === "string" ? host.name : id;
+                const enabled = host.enabled !== false;
+                return { id, name, enabled } as ImageHostInfo;
+            }).filter((host) => Boolean(host.id) && host.enabled)
+            : [];
+
+        return nextHosts;
+    }
+
+    async fetchAvailableWatermarkStyles(apiUrl: string, token: string): Promise<WatermarkStyleInfo[]> {
+        const signedListUrl = this.buildSignedUrl(apiUrl, "/api/imagehost/watermark/list", token);
+        const response = await fetch(signedListUrl, { method: "GET" });
+        const payload = await this.parseJsonResponse<ImageHostApiErrorPayload & { data?: { styles?: Array<Record<string, unknown>> } }>(response);
+
+        if (!response.ok || payload.code !== 0) {
+            throw new Error(this.buildImageHostApiError("获取水印样式列表", response, payload));
+        }
+
+        return Array.isArray(payload.data?.styles)
+            ? payload.data.styles.map((style) => {
+                const id = typeof style.id === "string" ? style.id : "";
+                const name = typeof style.name === "string" ? style.name : id;
+                return { id, name } as WatermarkStyleInfo;
+            }).filter((style) => Boolean(style.id))
+            : [];
     }
 
     buildSignedUrl(apiUrl: string, endpoint: string, token: string): string {
@@ -772,8 +825,22 @@ class BlogView{
                     this.updatePreview();
                 }
                 break;
+            case "selectWatermarkStyle":
+                if (typeof message.data === "string") {
+                    this.persistSelectedWatermarkStyle(message.data.trim());
+                }
+                break;
             case "uploadImages":
-                void this.uploadImagesToImageHost(typeof message.data === "string" ? message.data : "");
+                if (typeof message.data === "string") {
+                    void this.uploadImagesToImageHost(message.data, "");
+                    break;
+                }
+
+                const uploadPayload = this.toRecord(message.data);
+                void this.uploadImagesToImageHost(
+                    typeof uploadPayload.hostId === "string" ? uploadPayload.hostId : "",
+                    typeof uploadPayload.watermarkStyleId === "string" ? uploadPayload.watermarkStyleId : ""
+                );
                 break;
             case "msg":
                 this.showMessage(message.data.message, message.data.type);
@@ -797,8 +864,19 @@ class BlogView{
         this.pushImageHostState();
     }
 
-    async uploadImagesToImageHost(hostId: string) {
+    persistSelectedWatermarkStyle(styleId: string) {
+        this.selectedWatermarkStyleId = styleId;
+        void this.context.workspaceState.update(SELECTED_WATERMARK_STYLE_STORAGE_KEY, styleId);
+        this.pushImageHostState();
+    }
+
+    async uploadImagesToImageHost(hostId: string, watermarkStyleId: string) {
         const activeHostId = hostId || this.selectedImageHostId;
+        const activeWatermarkStyleId = this.availableWatermarkStyles.some((style) => style.id === watermarkStyleId)
+            ? watermarkStyleId
+            : (this.availableWatermarkStyles.some((style) => style.id === this.selectedWatermarkStyleId)
+                ? this.selectedWatermarkStyleId
+                : "");
         const settings = this.getImageHostSettings();
 
         if (!settings.enabled) {
@@ -850,7 +928,13 @@ class BlogView{
 
                 let uploadResult: { imageUrl: string; imageId?: string };
                 try {
-                    uploadResult = await this.uploadSingleImage(settings.apiUrl, settings.token, activeHostId, imageUri.fsPath);
+                    uploadResult = await this.uploadSingleImage(
+                        settings.apiUrl,
+                        settings.token,
+                        activeHostId,
+                        imageUri.fsPath,
+                        activeWatermarkStyleId
+                    );
                 } catch (uploadError) {
                     const uploadErrorMessage = uploadError instanceof Error ? uploadError.message : "未知错误";
                     failed.push(`${localPath}(${uploadErrorMessage})`);
@@ -878,6 +962,7 @@ class BlogView{
 
             await this.replaceDocumentContent(previewDocument, nextContent);
             this.persistSelectedImageHost(activeHostId);
+            this.persistSelectedWatermarkStyle(activeWatermarkStyleId);
             this.updatePreview();
 
             const summary = `上传完成：成功 ${uploadedNow.length}，跳过 ${skipped.length}，失败 ${failed.length}`;
@@ -891,12 +976,15 @@ class BlogView{
         }
     }
 
-    async uploadSingleImage(apiUrl: string, token: string, hostId: string, absoluteFilePath: string): Promise<{ imageUrl: string; imageId?: string }> {
+    async uploadSingleImage(apiUrl: string, token: string, hostId: string, absoluteFilePath: string, watermarkStyleId?: string): Promise<{ imageUrl: string; imageId?: string }> {
         const signedUploadUrl = this.buildSignedUrl(apiUrl, "/api/imagehost/upload", token);
         const formData = new FormData();
         const fileBuffer = fs.readFileSync(absoluteFilePath);
         const fileBlob = new Blob([fileBuffer]);
         formData.append("hostId", hostId);
+        if (watermarkStyleId) {
+            formData.append("watermarkStyleId", watermarkStyleId);
+        }
         formData.append("file", fileBlob, path.basename(absoluteFilePath));
 
         const response = await fetch(signedUploadUrl, {

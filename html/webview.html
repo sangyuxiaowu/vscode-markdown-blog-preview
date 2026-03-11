@@ -80,6 +80,8 @@
 
         #image-host-row {
             display: none;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
         #upload-images[disabled] {
@@ -179,6 +181,10 @@
             <div class="settings-item" id="image-host-row">
                 <label>图床</label>
                 <select id="image-host" title="选择图床" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                        tabindex="-1" data-focusable="true">
+                </select>
+                <label>水印</label>
+                <select id="watermark-style" title="选择水印样式" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
                         tabindex="-1" data-focusable="true">
                 </select>
                 <a class="monaco-button monaco-text-button" id="upload-images" tabindex="0" role="button" title="上传本地图片">

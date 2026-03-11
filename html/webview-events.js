@@ -49,12 +49,21 @@
         postCommand("selectImageHost", state.selectedImageHostId);
     });
 
+    refs.watermarkStyleSelect.addEventListener("change", () => {
+        state.selectedWatermarkStyleId = refs.watermarkStyleSelect.value;
+        app.updateWebviewState();
+        postCommand("selectWatermarkStyle", state.selectedWatermarkStyleId);
+    });
+
     refs.uploadImagesButton.addEventListener("click", () => {
         if (!state.isImageHostEnabled || !state.selectedImageHostId || refs.uploadImagesButton.hasAttribute("disabled")) {
             return;
         }
 
-        postCommand("uploadImages", state.selectedImageHostId);
+        postCommand("uploadImages", {
+            hostId: state.selectedImageHostId,
+            watermarkStyleId: state.selectedWatermarkStyleId
+        });
     });
 
     refs.wechatAdaptationCheckbox.addEventListener("change", () => {
@@ -126,6 +135,10 @@
                     Boolean(payload.enabled),
                     Array.isArray(payload.hosts) ? payload.hosts : [],
                     typeof payload.selectedHostId === "string" ? payload.selectedHostId : ""
+                );
+                app.render.setWatermarkStyleOptions(
+                    Array.isArray(payload.watermarkStyles) ? payload.watermarkStyles : [],
+                    typeof payload.selectedWatermarkStyleId === "string" ? payload.selectedWatermarkStyleId : ""
                 );
                 break;
             }

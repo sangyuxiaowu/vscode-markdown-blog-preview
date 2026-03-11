@@ -85,7 +85,8 @@
     },
     "a": {
       "color": "#0969da",
-      "text-decoration": "none"
+      "text-decoration": "none",
+      "word-break": "break-all"
     },
     "figcaption": {
         "text-align": "center",

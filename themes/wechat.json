@@ -1,9 +1,19 @@
 {
 	"name": "微信公众号",
+	"contentFontSans": "-apple-system-font,BlinkMacSystemFont, Helvetica Neue, PingFang SC, Hiragino Sans GB, Microsoft YaHei UI, Microsoft YaHei, Arial, sans-serif",
+	"contentFontSerif": "Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, 'PingFang SC', Cambria, Cochin, Georgia, Times, 'Times New Roman', serif",
+	"fixedCodeFont": "Consolas, 'Liberation Mono', Menlo, Courier, monospace",
 	"contentStyle": {
 		"text-align": "left",
 		"color": "#3f3f3f",
 		"line-height": "1.75"
+	},
+	"inlineCodeStyle": {
+		"font-size": "90%",
+		"color": "#d14",
+		"background": "rgba(27,31,35,.05)",
+		"padding": "3px 5px",
+		"border-radius": "4px"
 	},
 	"elementStyles": {
 		"h1": {
@@ -50,7 +60,7 @@
 		},
 		"pre": {
 			"font-size": "80%",
-			"overflow": "auto",
+			"overflow-x": "scroll",
 			"color": "#333",
 			"background": "rgb(247, 247, 247)",
 			"border-radius": "2px",
@@ -63,7 +73,9 @@
 			"border-radius": "4px",
 			"display": "block",
 			"margin": "0.5em auto",
-			"width": "100%"
+			"width": "100%",
+			"max-width": "100%",
+      		"height": "auto"
 		},
 		"ol": {
 			"margin-left": "0",
@@ -72,18 +84,12 @@
 		"ul": {
 			"margin-left": "0",
 			"padding-left": "1em",
-			"list-style": "circle"
-		},
-		".footnotes": {
-			"margin": "0.5em 8px",
-			"font-size": "80%"
+			"list-style": "disc"
 		},
 		"figure": {
 			"margin": "1.5em 8px"
 		},
 		"li": {
-			"text-indent": "-1em",
-			"display": "block",
 			"margin": "0.5em 8px"
 		},
 		"a": {
@@ -112,13 +118,33 @@
 			"text-align": "center",
 			"color": "#888",
 			"font-size": "0.8em"
+		},
+		"[data-mdbp-ref-sup]": {
+			"font-size": "75%",
+			"opacity": "0.75",
+			"margin-left": "0.2em"
+		},
+		"[data-mdbp-references-title]": {
+			"text-align": "left",
+			"color": "#3f3f3f",
+			"line-height": "1.75",
+			"font-size": "1em",
+			"font-weight": "bold",
+			"margin": "2em 8px 0.5em 8px"
+		},
+		"[data-mdbp-references-list]": {
+			"margin": "0.5em 8px",
+			"letter-spacing": "0.02em",
+			"font-size": "80%"
+		},
+		"[data-mdbp-references-index]": {
+			"font-size": "90%",
+			"opacity": "0.6",
+			"font-style": "normal"
+		},
+		"[data-mdbp-references-url]": {
+			"word-break": "break-all",
+			"font-size": "90%"
 		}
-	},
-	"inlineCodeStyle": {
-		"font-size": "90%",
-		"color": "#d14",
-		"background": "rgba(27,31,35,.05)",
-		"padding": "3px 5px",
-		"border-radius": "4px"
 	}
 }

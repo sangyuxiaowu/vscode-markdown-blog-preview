@@ -11,7 +11,7 @@
     <link rel="stylesheet" type="text/css" href="[insert-vscode-approot]/out/vs/workbench/workbench.desktop.main.css">
     <style>
         :root {
-            --settings-height: 52px;
+            --settings-height: 128px;
         }
 
         body {
@@ -62,13 +62,36 @@
 
         .settings-body {
             display: flex;
+            flex-direction: column;
+            gap: 8px;
             margin: 8px;
+        }
+
+        .settings-row {
+            display: flex;
+            gap: 8px;
         }
 
         .settings-item {
             flex: 1;
             display: flex;
             align-items: center;
+        }
+
+        #image-host-row {
+            display: none;
+        }
+
+        #upload-images[disabled] {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        #upload-images {
+            width: auto;
+            padding: 4px 10px;
+            margin-left: 8px;
+            white-space: nowrap;
         }
 
         .preview-wrapper {
@@ -97,41 +120,80 @@
             width: 100%;
         }
     </style>
-    <insert-vscode-resource />
+    <insert-vscode-resource/>
 </head>
 
 <body>
 
 <div class="settings">
     <div class="settings-body">
-        <div class="settings-item">
-            <label>字号</label>
-            <select title="选择字体大小" id="font-size" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                tabindex="-1" data-focusable="true">
-                <option value="14" style="font-size: 14px;">14px 稍小</option>
-                <option value="15" style="font-size: 15px;" selected>15px 默认</option>
-                <option value="16" style="font-size: 16px;">16px 稍大</option>
-                <option value="17" style="font-size: 17px;">17px 很大</option>
-            </select>
+        <div class="settings-row">
+            <div class="settings-item">
+                <label>字号</label>
+                <select title="选择字体大小" id="font-size" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                    tabindex="-1" data-focusable="true">
+                    <option value="14" style="font-size: 14px;">14px 稍小</option>
+                    <option value="15" style="font-size: 15px;" selected>15px 默认</option>
+                    <option value="16" style="font-size: 16px;">16px 稍大</option>
+                    <option value="17" style="font-size: 17px;">17px 很大</option>
+                </select>
+            </div>
+            <div class="settings-item">
+                <label>字体</label>
+                <select id="font-family" title="选择字体" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                    tabindex="-1" data-focusable="true">
+                    <option value="sans" selected>无衬线</option>
+                    <option value="serif">衬线</option>
+                </select>
+            </div>
+            <div class="settings-item">
+                <label>主题</label>
+                <select id="theme" title="选择主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                    tabindex="-1" data-focusable="true">
+                </select>
+            </div>
         </div>
-        <div class="settings-item">
-            <label>字体</label>
-            <select id="font-family" title="选择字体" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                tabindex="-1" data-focusable="true">
-                <option value="sans" selected>无衬线</option>
-                <option value="serif">衬线</option>
-            </select>
+        <div class="settings-row">
+            <div class="settings-item">
+                <label>代码主题</label>
+                <select id="code-theme" title="选择代码主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                    tabindex="-1" data-focusable="true">
+                </select>
+            </div>
+            <div class="settings-item">
+                <label>
+                    <input id="convert-links-to-references" type="checkbox">
+                    外链转引用
+                </label>
+            </div>
+            <div class="settings-item">
+                <label>
+                    <input id="wechat-adaptation" type="checkbox">
+                    微信公众号适配
+                </label>
+            </div>
+
         </div>
-        <div class="settings-item">
-            <label>主题</label>
-            <select id="theme" title="选择主题" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
-                tabindex="-1" data-focusable="true">
-            </select>
+
+        <div class="settings-row">
+            <div class="settings-item" id="image-host-row">
+                <label>图床</label>
+                <select id="image-host" title="选择图床" class="monaco-select-box monaco-select-box-dropdown-padding setting-control-focus-target"
+                        tabindex="-1" data-focusable="true">
+                </select>
+                <a class="monaco-button monaco-text-button" id="upload-images" tabindex="0" role="button" title="上传本地图片">
+                    <div class="monaco-button-label">上传图片</div>
+                </a>
+            </div>
         </div>
-        <div class="settings-item">
-            <a class="monaco-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
-                <div class="monaco-button-label">复制</div>
-            </a>
+
+        <div class="settings-row">
+            
+            <div class="settings-item">
+                <a class="monaco-button monaco-text-button" id="copy" tabindex="0" role="button" title="点击复制">
+                    <div class="monaco-button-label">复制</div>
+                </a>
+            </div>
         </div>
 
     </div>
@@ -149,422 +211,6 @@
     </section>
 </div>
 
-
-
-<script>
-    const vscode = acquireVsCodeApi();
-    const previewWrapper = document.getElementsByClassName("preview-wrapper")[0];
-    const previewInfo = document.getElementsByClassName("preview")[0];
-    const fontSizeSelect = document.getElementById("font-size");
-    const fontFamilySelect = document.getElementById("font-family");
-    const themeSelect = document.getElementById("theme");
-    const viewHost = document.getElementById("view-host");
-    let syncingFromExtension = false;
-    let latestMarkdownHtml = "";
-    let latestRenderedInlineHtml = "";
-    let currentThemes = [];
-    let selectedThemeId = "default";
-
-    const CONTENT_FONT_SANS = "-apple-system-font,BlinkMacSystemFont, Helvetica Neue, PingFang SC, Hiragino Sans GB , Microsoft YaHei UI , Microsoft YaHei ,Arial,sans-serif";
-    const CONTENT_FONT_SERIF = "Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, 'PingFang SC', Cambria, Cochin, Georgia, Times, 'Times New Roman', serif";
-    const FIXED_CODE_FONT = "Consolas, \"Liberation Mono\", Menlo, Courier, monospace";
-
-    const shadowRoot = viewHost.attachShadow({ mode: "open" });
-    const shadowStyle = document.createElement("style");
-    shadowStyle.textContent = `
-        :host { display: block; }
-        #view { display: block; }
-    `;
-    const shadowView = document.createElement("div");
-    shadowView.id = "view";
-    shadowRoot.append(shadowStyle, shadowView);
-
-    const defaultPreviewStyle = {
-        width: "375px",
-        background: "#fff",
-        padding: "20px",
-        boxShadow: "0 0 60px rgb(0 0 0 / 10%)"
-    };
-
-    const defaultInlineCodeStyle = {
-        padding: "2px 6px",
-        margin: "0 2px",
-        color: "#c7254e",
-        background: "#f9f2f4",
-        borderRadius: "4px",
-        fontSize: "0.92em"
-    };
-
-    function findThemeById(themeId) {
-        return currentThemes.find(theme => theme.id === themeId);
-    }
-
-    function normalizeStyleObject(style) {
-        if (!style || typeof style !== "object") {
-            return {};
-        }
-
-        const result = {};
-        Object.entries(style).forEach(([key, value]) => {
-            if (typeof value === "string") {
-                result[key] = value;
-            }
-        });
-        return result;
-    }
-
-    function styleObjectToCss(style) {
-        const entries = Object.entries(normalizeStyleObject(style));
-        if (entries.length === 0) {
-            return "";
-        }
-        return entries.map(([key, value]) => `${key}: ${value};`).join(" ");
-    }
-
-    function applyTheme(themeId) {
-        selectedThemeId = themeId;
-        const theme = findThemeById(themeId);
-
-        const previewStyle = Object.assign({}, defaultPreviewStyle, normalizeStyleObject(theme?.previewStyle));
-        Object.assign(previewInfo.style, previewStyle);
-
-        applyFontSize(fontSizeSelect.value);
-    }
-
-    function appendInlineStyle(target, styleText) {
-        if (!styleText) {
-            return;
-        }
-        const current = target.getAttribute("style") || "";
-        target.setAttribute("style", `${current} ${styleText}`.trim());
-    }
-
-    function applyStyleMap(target, style) {
-        const cssText = styleObjectToCss(style);
-        appendInlineStyle(target, cssText);
-    }
-
-    function getSelectedFontFamily() {
-        return fontFamilySelect.value === "serif" ? CONTENT_FONT_SERIF : CONTENT_FONT_SANS;
-    }
-
-    function applyBaseInlineStyles(root) {
-        root.querySelectorAll("*").forEach((node) => {
-            appendInlineStyle(node, "word-break: break-word;");
-        });
-
-        root.querySelectorAll("img").forEach((img) => {
-            appendInlineStyle(img, "max-width: 100%; height: auto;");
-        });
-        root.querySelectorAll("table").forEach((table) => {
-            appendInlineStyle(table, "width: 100%; border-collapse: collapse; margin: 1em 0;");
-        });
-        root.querySelectorAll("th, td").forEach((cell) => {
-            appendInlineStyle(cell, "border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left;");
-        });
-        root.querySelectorAll("blockquote").forEach((blockquote) => {
-            appendInlineStyle(blockquote, "margin: 0.9em 0; padding: 0.25em 0 0.25em 0.9em; border-left: 4px solid #d0d7de; color: #57606a; background: #f6f8fa;");
-        });
-        root.querySelectorAll("pre").forEach((pre) => {
-            appendInlineStyle(pre, "overflow: auto;");
-        });
-    }
-
-    function applyInlineThemeAndTypography(container) {
-        const theme = findThemeById(selectedThemeId);
-        const rootFontFamily = getSelectedFontFamily();
-
-        const root = document.createElement("div");
-        root.innerHTML = container.innerHTML;
-
-        root.querySelectorAll("style, script").forEach((node) => {
-            node.remove();
-        });
-
-        appendInlineStyle(root, `font-family: ${rootFontFamily};`);
-        appendInlineStyle(root, `font-size: ${fontSizeSelect.value}px;`);
-        appendInlineStyle(root, "line-height: 1.8;");
-        appendInlineStyle(root, "color: #2f2f2f;");
-        appendInlineStyle(root, "word-break: break-word;");
-        applyStyleMap(root, theme?.contentStyle);
-
-        applyBaseInlineStyles(root);
-
-        root.querySelectorAll("p, li, blockquote, td, th").forEach((node) => {
-            appendInlineStyle(node, `font-family: ${rootFontFamily};`);
-            appendInlineStyle(node, `font-size: ${fontSizeSelect.value}px;`);
-        });
-
-        root.querySelectorAll("h1, h2, h3, h4, h5, h6, a, strong, em").forEach((node) => {
-            appendInlineStyle(node, `font-family: ${rootFontFamily};`);
-        });
-
-        const elementStyles = theme?.elementStyles;
-        if (elementStyles && typeof elementStyles === "object") {
-            Object.entries(elementStyles).forEach(([selector, styleMap]) => {
-                if (!selector) {
-                    return;
-                }
-                root.querySelectorAll(selector).forEach((node) => {
-                    applyStyleMap(node, styleMap);
-                });
-            });
-        }
-
-        root.querySelectorAll("pre > code").forEach((code) => {
-            appendInlineStyle(code, `font-family: ${FIXED_CODE_FONT};`);
-        });
-        root.querySelectorAll("code:not(pre > code)").forEach((code) => {
-            appendInlineStyle(code, `font-family: ${FIXED_CODE_FONT};`);
-        });
-
-        return root;
-    }
-
-    function setThemeOptions(themes) {
-        currentThemes = Array.isArray(themes) ? themes : [];
-
-        if (currentThemes.length === 0) {
-            currentThemes = [{ id: "default", name: "默认" }];
-        }
-
-        themeSelect.innerHTML = "";
-        currentThemes.forEach(theme => {
-            const option = document.createElement("option");
-            option.value = theme.id;
-            option.textContent = theme.name;
-            themeSelect.appendChild(option);
-        });
-
-        const available = currentThemes.some(theme => theme.id === selectedThemeId);
-        if (!available) {
-            selectedThemeId = currentThemes[0].id;
-        }
-        themeSelect.value = selectedThemeId;
-        applyTheme(selectedThemeId);
-        if (latestMarkdownHtml) {
-            renderMarkdownToPreview(latestMarkdownHtml);
-        }
-    }
-
-    function applyFontSize(fontSize) {
-        const parsed = Number(fontSize);
-        if (Number.isNaN(parsed) || parsed <= 0) {
-            return;
-        }
-        if (latestMarkdownHtml) {
-            renderMarkdownToPreview(latestMarkdownHtml);
-        }
-    }
-
-    function applyWechatCodeBlockFormat(rawHtml) {
-        const container = document.createElement("div");
-        container.innerHTML = rawHtml;
-        const theme = findThemeById(selectedThemeId);
-
-        const images = container.querySelectorAll("img");
-        images.forEach((img) => {
-            if (img.closest("figure")) {
-                return;
-            }
-
-            const altText = (img.getAttribute("alt") || "").trim();
-            const titleText = (img.getAttribute("title") || "").trim();
-            const captionText = altText || titleText;
-            if (!captionText) {
-                return;
-            }
-
-            const figure = document.createElement("figure");
-            const figcaption = document.createElement("figcaption");
-            figcaption.textContent = captionText;
-
-            const parent = img.parentElement;
-            if (parent && parent.tagName.toLowerCase() === "p") {
-                const onlyImageInParagraph = Array.from(parent.childNodes).every((node) => {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        return node === img;
-                    }
-                    if (node.nodeType === Node.TEXT_NODE) {
-                        return !(node.textContent || "").trim();
-                    }
-                    return true;
-                });
-
-                if (onlyImageInParagraph && parent.parentNode) {
-                    parent.parentNode.replaceChild(figure, parent);
-                } else if (parent) {
-                    parent.insertBefore(figure, img);
-                    parent.removeChild(img);
-                }
-            } else if (parent) {
-                parent.insertBefore(figure, img);
-                parent.removeChild(img);
-            }
-
-            figure.appendChild(img);
-            figure.appendChild(figcaption);
-        });
-
-        const blockCodes = container.querySelectorAll("pre > code");
-        blockCodes.forEach(code => {
-            const pre = code.parentElement;
-            if (!pre) {
-                return;
-            }
-
-            pre.setAttribute(
-                "style",
-                "margin: 1em 0; padding: 12px 14px; background: #f6f8fa; border: 1px solid #eaecef; border-radius: 6px; overflow-x: auto;"
-            );
-            code.setAttribute(
-                "style",
-                `display: block; color: #24292e; background: transparent; font-size: 13px; line-height: 1.7; white-space: pre; font-family: ${FIXED_CODE_FONT};`
-            );
-        });
-
-        const inlineCodes = container.querySelectorAll("code:not(pre > code)");
-        const inlineCodeStyle = Object.assign({}, defaultInlineCodeStyle, normalizeStyleObject(theme?.inlineCodeStyle));
-        const inlineCodeStyleText = styleObjectToCss(inlineCodeStyle);
-        inlineCodes.forEach(code => {
-            code.setAttribute(
-                "style",
-                `${inlineCodeStyleText} font-family: ${FIXED_CODE_FONT};`
-            );
-        });
-
-        return container;
-    }
-
-    function renderMarkdownToPreview(rawHtml) {
-        if (!rawHtml) {
-            shadowView.innerHTML = "";
-            latestRenderedInlineHtml = "";
-            return;
-        }
-
-        const container = applyWechatCodeBlockFormat(rawHtml);
-        const resultRoot = applyInlineThemeAndTypography(container);
-        latestRenderedInlineHtml = resultRoot.innerHTML;
-        shadowView.innerHTML = "";
-        shadowView.appendChild(resultRoot);
-    }
-
-    applyTheme("default");
-    applyFontSize(fontSizeSelect.value);
-
-    fontSizeSelect.addEventListener("change", () => {
-        applyFontSize(fontSizeSelect.value);
-    });
-
-    fontFamilySelect.addEventListener("change", () => {
-        renderMarkdownToPreview(latestMarkdownHtml);
-    });
-
-    themeSelect.addEventListener("change", () => {
-        applyTheme(themeSelect.value);
-        renderMarkdownToPreview(latestMarkdownHtml);
-    });
-
-    window.addEventListener("message", event => {
-        const message = event.data;
-        switch (message.command) {
-            case "scroll": {
-                syncingFromExtension = true;
-                previewWrapper.scrollTo(0, previewInfo.clientHeight * message.data);
-                requestAnimationFrame(() => {
-                    syncingFromExtension = false;
-                });
-                break;
-            }
-
-            case "renderMarkdown": {
-                latestMarkdownHtml = message.data || "";
-                renderMarkdownToPreview(latestMarkdownHtml);
-                break;
-            }
-            case "updateThemes": {
-                setThemeOptions(Array.isArray(message.data) ? message.data : []);
-                break;
-            }
-        }
-    });
-    async function copyPreviewContent() {
-        const html = latestRenderedInlineHtml || shadowView.innerHTML;
-        const plainText = shadowView.textContent || "";
-
-        if (!html || !html.trim()) {
-            return false;
-        }
-
-        if (navigator.clipboard && window.ClipboardItem) {
-            try {
-                const item = new ClipboardItem({
-                    "text/html": new Blob([html], { type: "text/html" }),
-                    "text/plain": new Blob([plainText], { type: "text/plain" })
-                });
-                await navigator.clipboard.write([item]);
-                return true;
-            } catch {
-            }
-        }
-
-        const temp = document.createElement("div");
-        temp.setAttribute("contenteditable", "true");
-        temp.style.position = "fixed";
-        temp.style.left = "-99999px";
-        temp.style.top = "0";
-        temp.innerHTML = html;
-        document.body.appendChild(temp);
-
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(temp);
-
-        if (selection) {
-            selection.removeAllRanges();
-            selection.addRange(range);
-        }
-
-        const copied = document.execCommand("copy");
-
-        if (selection) {
-            selection.removeAllRanges();
-        }
-        document.body.removeChild(temp);
-        return copied;
-    }
-
-    // 点击复制富文本信息到剪贴板
-    document.getElementById("copy").addEventListener("click", async () => {
-        const copied = await copyPreviewContent();
-        vscode.postMessage({
-            command: "msg",
-            data: {
-                type: copied ? "success" : "warning",
-                message: copied ? "复制成功" : "复制失败"
-            }
-        });
-    });
-    // 滚动同步
-    previewWrapper.addEventListener("scroll", () => {
-        if (syncingFromExtension) {
-            return;
-        }
-        const scrollTop = previewWrapper.scrollTop;
-        const scrollHeight = previewWrapper.scrollHeight;
-        const clientHeight = previewWrapper.clientHeight;
-        const denominator = scrollHeight - clientHeight;
-        if (denominator <= 0) {
-            return;
-        }
-        const scrollPercent = scrollTop / denominator;
-        vscode.postMessage({
-            command: "scroll",
-            data: scrollPercent
-        });
-    });
-</script>
 </body>
 
 </html>

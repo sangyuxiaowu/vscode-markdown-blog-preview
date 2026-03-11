@@ -1,0 +1,50 @@
+{
+  "name": "Monokai",
+  "blockStyle": {
+    "background": "#272822",
+    "border": "1px solid #1f201b",
+    "border-radius": "6px"
+  },
+  "codeStyle": {
+    "color": "#f8f8f2",
+    "font-size": "13px",
+    "line-height": "1.7"
+  },
+  "tokenStyles": {
+    ".hljs-comment, .hljs-quote": {
+      "color": "#75715e",
+      "font-style": "italic"
+    },
+    ".hljs-keyword, .hljs-selector-tag, .hljs-subst": {
+      "color": "#f92672"
+    },
+    ".hljs-string, .hljs-doctag, .hljs-regexp": {
+      "color": "#e6db74"
+    },
+    ".hljs-title, .hljs-section, .hljs-function .hljs-title": {
+      "color": "#a6e22e"
+    },
+    ".hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet": {
+      "color": "#ae81ff"
+    },
+    ".hljs-type, .hljs-built_in, .hljs-class .hljs-title": {
+      "color": "#66d9ef"
+    },
+    ".hljs-attr, .hljs-attribute": {
+      "color": "#a6e22e"
+    },
+    ".hljs-variable, .hljs-template-variable": {
+      "color": "#fd971f"
+    },
+    ".hljs-meta, .hljs-meta .hljs-keyword": {
+      "color": "#fd971f"
+    },
+    ".hljs-tag, .hljs-name": {
+      "color": "#f92672"
+    },
+    ".hljs-link": {
+      "color": "#66d9ef",
+      "text-decoration": "underline"
+    }
+  }
+}

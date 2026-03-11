@@ -3,7 +3,7 @@
   "displayName": "Markdown Blog Preview",
   "description": "Markdown 文章排版神器，多平台支持，可定制 JSON 主题，实时查看效果。",
   "publisher": "sangsq",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "license": "Apache-2.0",
   "icon": "icon/logo.png",
   "repository": {
@@ -63,6 +63,7 @@
       "title": "Markdown Blog Preview",
       "properties": {
         "mdbp.themeConfigFiles": {
+          "order": 1,
           "type": "array",
           "default": [
             "themes/default.json",
@@ -72,6 +73,31 @@
             "type": "string"
           },
           "markdownDescription": "主题配置 JSON 文件路径列表（支持工作区相对路径与绝对路径）。例如：`[\"themes/wechat.json\", \"themes/minimal.json\"]`"
+        },
+        "mdbp.codeThemeConfigFiles": {
+          "order": 2,
+          "type": "array",
+          "default": [
+            "themes/code-themes/github-light.json",
+            "themes/code-themes/monokai.json",
+            "themes/code-themes/vscode-dark.json"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "代码高亮主题 JSON 文件路径列表。保留页面中的“默认”选项时不会改写代码块；选择这里配置的主题后，会将代码高亮以内联样式输出。"
+        },
+        "mdbp.imageHost.apiUrl": {
+          "order": 10,
+          "type": "string",
+          "default": "",
+          "markdownDescription": "图床服务基础 URL（例如：`http://localhost:5269`）。配置后可在预览页选择图床并上传图片。图床服务端软件：https://github.com/sangyuxiaowu/ImageHostAPI"
+        },
+        "mdbp.imageHost.token": {
+          "order": 11,
+          "type": "string",
+          "default": "",
+          "markdownDescription": "图床服务 token，用于签名请求。"
         }
       }
     }
@@ -109,6 +135,8 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "showdown": "^2.1.0"
+    "highlight.js": "^11.11.1",
+    "showdown": "^2.1.0",
+    "yaml": "^2.8.1"
   }
 }

@@ -18,24 +18,27 @@
         }
     }
 
-    // 判断链接是否需要转换为参考文献脚注
-    function shouldConvertLink(anchor) {
+    function getLinkTransformInfo(anchor) {
         const href = (anchor.getAttribute("href") || "").trim();
         if (!href) {
-            return false;
+            return null;
         }
 
         const parsedUrl = parseHttpUrl(href);
         if (!parsedUrl) {
-            return false;
+            return null;
         }
 
         if (parsedUrl.hostname.toLowerCase() === "mp.weixin.qq.com") {
-            return false;
+            return null;
         }
 
         const linkText = (anchor.textContent || "").replace(/\s+/g, " ").trim();
-        return Boolean(linkText) && linkText !== href;
+        return {
+            href,
+            linkText,
+            needsReference: Boolean(linkText) && linkText !== href
+        };
     }
 
     // 将单条参考链接追加到参考文献段落中
@@ -83,18 +86,12 @@
         const referenceIndexByHref = new Map();
         const anchors = Array.from(container.querySelectorAll("a[href]"));
         anchors.forEach((anchor) => {
-            if (!shouldConvertLink(anchor)) {
+            const linkInfo = getLinkTransformInfo(anchor);
+            if (!linkInfo) {
                 return;
             }
 
-            const href = (anchor.getAttribute("href") || "").trim();
-            const linkText = (anchor.textContent || "").replace(/\s+/g, " ").trim();
-            let referenceIndex = referenceIndexByHref.get(href);
-            if (!referenceIndex) {
-                referenceIndex = references.length + 1;
-                referenceIndexByHref.set(href, referenceIndex);
-                references.push({ index: referenceIndex, text: linkText, href });
-            }
+            const { href, linkText, needsReference } = linkInfo;
 
             const fragment = document.createDocumentFragment();
             const linkTextWrapper = document.createElement("span");
@@ -103,6 +100,18 @@
                 linkTextWrapper.appendChild(anchor.firstChild);
             }
             fragment.appendChild(linkTextWrapper);
+
+            if (!needsReference) {
+                anchor.replaceWith(fragment);
+                return;
+            }
+
+            let referenceIndex = referenceIndexByHref.get(href);
+            if (!referenceIndex) {
+                referenceIndex = references.length + 1;
+                referenceIndexByHref.set(href, referenceIndex);
+                references.push({ index: referenceIndex, text: linkText, href });
+            }
 
             const sup = document.createElement("sup");
             sup.textContent = `[${referenceIndex}]`;
@@ -277,7 +286,7 @@
 
     app.renderTransform = {
         parseHttpUrl,
-        shouldConvertLink,
+        getLinkTransformInfo,
         appendReferenceItem,
         buildReferencesSection,
         convertExternalLinksToReferences,

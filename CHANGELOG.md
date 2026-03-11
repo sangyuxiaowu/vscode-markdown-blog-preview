@@ -4,6 +4,15 @@ All notable changes to the "markdown-blog-preview" extension will be documented 
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.2.0] - 2026-03-11
+
+- 新增图床配置与上传流程，支持按图床 ID 持久化图片映射并在预览中自动替换图片 URL
+- 新增 `mdbp.imageHost.apiUrl` 与 `mdbp.imageHost.token` 配置项
+- 新增微信公众号适配选项，修正列表结构与代码缩进等常见粘贴问题
+- 新增行内代码样式配置 `inlineCodeStyle`
+- 优化主题行为，微信主题默认启用“外链转引用”和“微信公众号适配”，且支持手动覆盖
+- 优化预览侧前端代码结构，拆分渲染、样式、内容变换与选项同步逻辑，降低维护成本
+
 ## [1.1.0] - 2026-03-07
 
 - 新增代码主题下拉，支持默认模式与内置代码高亮主题

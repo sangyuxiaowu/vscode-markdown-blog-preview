@@ -3,7 +3,7 @@
   "displayName": "Markdown Blog Preview",
   "description": "Markdown 文章排版神器，多平台支持，可定制 JSON 主题，实时查看效果。",
   "publisher": "sangsq",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "license": "Apache-2.0",
   "icon": "icon/logo.png",
   "repository": {

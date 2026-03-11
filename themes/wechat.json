@@ -60,7 +60,7 @@
 		},
 		"pre": {
 			"font-size": "80%",
-			"overflow": "auto",
+			"overflow-x": "scroll",
 			"color": "#333",
 			"background": "rgb(247, 247, 247)",
 			"border-radius": "2px",
@@ -73,7 +73,9 @@
 			"border-radius": "4px",
 			"display": "block",
 			"margin": "0.5em auto",
-			"width": "100%"
+			"width": "100%",
+			"max-width": "100%",
+      		"height": "auto"
 		},
 		"ol": {
 			"margin-left": "0",
@@ -83,10 +85,6 @@
 			"margin-left": "0",
 			"padding-left": "1em",
 			"list-style": "disc"
-		},
-		".footnotes": {
-			"margin": "0.5em 8px",
-			"font-size": "80%"
 		},
 		"figure": {
 			"margin": "1.5em 8px"

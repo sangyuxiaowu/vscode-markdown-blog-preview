@@ -120,6 +120,9 @@ class BlogView{
 
     configureWebviewScripts(webviewScripts: string[]) {
         webviewScripts.push("webview-main.js");
+        webviewScripts.push("webview-render-style.js");
+        webviewScripts.push("webview-render-transform.js");
+        webviewScripts.push("webview-render-options.js");
         webviewScripts.push("webview-render.js");
         webviewScripts.push("webview-events.js");
         return webviewScripts;

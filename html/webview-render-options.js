@@ -102,12 +102,36 @@
         app.updateWebviewState();
     }
 
+    function setWatermarkStyleOptions(styles, nextSelectedWatermarkStyleId) {
+        app.state.currentWatermarkStyles = Array.isArray(styles) ? styles : [];
+
+        const styleItems = [
+            { id: "", name: "无水印" },
+            ...app.state.currentWatermarkStyles.map((style) => ({
+                id: style.id,
+                name: style.name || style.id
+            }))
+        ];
+
+        populateSelectOptions(app.refs.watermarkStyleSelect, styleItems);
+
+        app.state.selectedWatermarkStyleId = resolveSelectedId(
+            styleItems,
+            nextSelectedWatermarkStyleId || app.state.selectedWatermarkStyleId,
+            ""
+        );
+
+        app.refs.watermarkStyleSelect.value = app.state.selectedWatermarkStyleId;
+        app.updateWebviewState();
+    }
+
     app.renderOptions = {
         populateSelectOptions,
         resolveSelectedId,
         parseFontSize,
         setThemeOptions,
         setCodeThemeOptions,
-        setImageHostOptions
+        setImageHostOptions,
+        setWatermarkStyleOptions
     };
 })();

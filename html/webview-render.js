@@ -307,7 +307,7 @@
             appendInlineStyle(blockquote, "margin: 0.9em 0; padding: 0.25em 0 0.25em 0.9em; border-left: 4px solid #d0d7de; color: #57606a; background: #f6f8fa;");
         });
         root.querySelectorAll("pre").forEach((pre) => {
-            appendInlineStyle(pre, "ooverflow-x: scroll;");
+            appendInlineStyle(pre, "overflow-x: scroll;");
         });
     }
 

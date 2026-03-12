@@ -12,8 +12,10 @@ Markdown 文章排版发布插件，面向公众号、博客、知乎、Bilibili
 - 微信公众号适配，可修正列表与代码缩进等常见粘贴问题
 - 行内代码样式可配置（`inlineCodeStyle`）
 - 主题与代码主题选择自动记忆
+- 图床与水印选择自动记忆
 - 正文支持无衬线/衬线切换
 - 图床上传：支持按图床 ID 记录上传映射并自动替换预览图片 URL
+- 微信主题支持上传草稿，自动根据 `mdbp.wxDraftMediaId` 区分新增与更新
 
 ## 使用方式
 
@@ -22,6 +24,14 @@ Markdown 文章排版发布插件，面向公众号、博客、知乎、Bilibili
 3. 在预览页调整字号、字体、主题、代码主题。
 4. 如需适配微信公众号等平台，可按需勾选 `外链转引用` 和 `微信公众号适配`。
 5. 点击 `复制`，粘贴到目标发布平台。
+
+如需上传微信公众号草稿：
+
+1. 使用微信主题，并在 front matter 中配置 `title` 与 `cover`。
+2. 在设置中配置 `mdbp.imageHost.apiUrl` 与 `mdbp.imageHost.token`。
+3. 在预览页选择图床和水印后，点击 `上传草稿`。
+4. 插件会先自动上传正文图片与封面图，再调用草稿接口。
+5. 首次上传成功后会写入 `mdbp.wxDraftMediaId`，后续再次点击会自动走更新逻辑。
 
 如需图床上传：
 
@@ -35,6 +45,7 @@ Markdown 文章排版发布插件，面向公众号、博客、知乎、Bilibili
 - 当代码主题选择为具体主题时，插件会将代码高亮以内联样式输出，适合微信等不依赖外部样式的场景。
 - 当正文主题名称包含“微信”时，`外链转引用` 会默认启用，但可以手动关闭。
 - 当正文主题名称包含“微信”时，`微信公众号适配` 也会默认启用，但可以手动关闭。
+- 当正文主题名称包含“微信”时，预览页会显示 `上传草稿` 按钮。
 
 ## 主题配置文件（JSON）
 
@@ -174,22 +185,26 @@ Markdown 文章排版发布插件，面向公众号、博客、知乎、Bilibili
 ```yaml
 ---
 title: 示例文章
+author: 作者名
 cover: ./images/cover.png
 mdbp:
+	wxDraftMediaId: DRAFT_MEDIA_ID
 	imageHosts:
 		wechat:
 			images:
-				./images/a.png:
-					imageUrl: https://example.com/a.png
-					imageId: MEDIA_ID_A
-					uploadedAt: 2026-03-08T10:00:00.000Z
-			cover:
-				localPath: ./images/cover.png
-				imageUrl: https://example.com/cover.png
-				imageId: MEDIA_ID_COVER
-				uploadedAt: 2026-03-08T10:00:00.000Z
+				./images/a.png: https://example.com/a.png
+			coverRef: ./images/cover.png
+			coverMediaId: MEDIA_ID_COVER
+			updatedAt: 2026-03-08T10:00:00.000Z
 ---
 ```
+
+说明：
+
+- `images` 记录正文图片的本地路径到远程 URL 的映射。
+- `coverRef` 记录当前封面图对应的本地路径。
+- `coverMediaId` 用于微信公众号草稿接口的封面素材 ID。
+- `wxDraftMediaId` 是草稿接口返回的媒体 ID，存在时会自动走更新接口。
 
 ## 外链转引用
 

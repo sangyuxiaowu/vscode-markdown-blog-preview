@@ -492,6 +492,7 @@ class BlogView{
     getImageHostData(frontMatter: Record<string, unknown>, hostId: string): {
         images: Record<string, UploadedImageInfo>;
         coverRef?: string;
+        coverMediaId?: string;
     } {
         if (!hostId) {
             return { images: {} };
@@ -516,8 +517,9 @@ class BlogView{
         });
 
         const coverRef = typeof hostData.coverRef === "string" ? this.normalizeLocalKey(hostData.coverRef) : undefined;
+        const coverMediaId = typeof hostData.coverMediaId === "string" ? hostData.coverMediaId : undefined;
 
-        return { images, coverRef };
+        return { images, coverRef, coverMediaId };
     }
 
     normalizeLocalKey(value: string): string {
@@ -910,7 +912,7 @@ class BlogView{
                 return;
             }
 
-            const uploadedNow: Array<{ localPath: string; imageUrl: string }> = [];
+            const uploadedNow: Array<{ localPath: string; imageUrl: string; mediaId?: string }> = [];
             const skipped: string[] = [];
             const failed: string[] = [];
             for (const localPath of localImageKeys) {
@@ -926,7 +928,7 @@ class BlogView{
                     continue;
                 }
 
-                let uploadResult: { imageUrl: string; imageId?: string };
+                let uploadResult: { imageUrl: string; mediaId?: string };
                 try {
                     uploadResult = await this.uploadSingleImage(
                         settings.apiUrl,
@@ -943,7 +945,8 @@ class BlogView{
 
                 uploadedNow.push({
                     localPath,
-                    imageUrl: uploadResult.imageUrl
+                    imageUrl: uploadResult.imageUrl,
+                    mediaId: uploadResult.mediaId
                 });
             }
 
@@ -976,7 +979,7 @@ class BlogView{
         }
     }
 
-    async uploadSingleImage(apiUrl: string, token: string, hostId: string, absoluteFilePath: string, watermarkStyleId?: string): Promise<{ imageUrl: string; imageId?: string }> {
+    async uploadSingleImage(apiUrl: string, token: string, hostId: string, absoluteFilePath: string, watermarkStyleId?: string): Promise<{ imageUrl: string; mediaId?: string }> {
         const signedUploadUrl = this.buildSignedUrl(apiUrl, "/api/imagehost/upload", token);
         const formData = new FormData();
         const fileBuffer = fs.readFileSync(absoluteFilePath);
@@ -995,6 +998,7 @@ class BlogView{
             data?: {
                 success?: boolean;
                 imageUrl?: string;
+                mediaId?: string;
                 imageId?: string;
             };
         }>(response);
@@ -1006,7 +1010,7 @@ class BlogView{
 
         return {
             imageUrl,
-            imageId: payload.data.imageId
+            mediaId: payload.data.mediaId ?? payload.data.imageId
         };
     }
 
@@ -1081,7 +1085,7 @@ class BlogView{
     applyUploadedMappingsToFrontMatter(
         frontMatter: Record<string, unknown>,
         hostId: string,
-        uploadedMappings: Array<{ localPath: string; imageUrl: string }>,
+        uploadedMappings: Array<{ localPath: string; imageUrl: string; mediaId?: string }>,
         coverLocalPath: string
     ): Record<string, unknown> {
         const nextFrontMatter: Record<string, unknown> = { ...frontMatter };
@@ -1099,6 +1103,10 @@ class BlogView{
 
         if (coverLocalPath) {
             hostData.coverRef = coverLocalPath;
+            const coverImage = uploadedMappings.find((item) => this.normalizeLocalKey(item.localPath) === coverLocalPath);
+            if (coverImage?.mediaId) {
+                hostData.coverMediaId = coverImage.mediaId;
+            }
         }
         hostData.updatedAt = now;
 

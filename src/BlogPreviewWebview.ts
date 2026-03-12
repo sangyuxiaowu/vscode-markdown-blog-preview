@@ -68,6 +68,21 @@ interface ImageHostApiErrorPayload {
     data?: unknown;
 }
 
+interface WxDraftArticlePayload {
+    title: string;
+    author?: string;
+    digest?: string;
+    content: string;
+    thumbMediaId: string;
+    needOpenComment: number;
+}
+
+interface WxApiResponsePayload {
+    errcode?: number;
+    errmsg?: string;
+    mediaId?: string;
+}
+
 const DEFAULT_THEME_RELATIVE_PATH = "themes/default.json";
 const SELECTED_THEME_STORAGE_KEY = "mdbp.selectedThemeId";
 const SELECTED_CODE_THEME_STORAGE_KEY = "mdbp.selectedCodeThemeId";
@@ -492,6 +507,7 @@ class BlogView{
     getImageHostData(frontMatter: Record<string, unknown>, hostId: string): {
         images: Record<string, UploadedImageInfo>;
         coverRef?: string;
+        coverMediaId?: string;
     } {
         if (!hostId) {
             return { images: {} };
@@ -516,8 +532,9 @@ class BlogView{
         });
 
         const coverRef = typeof hostData.coverRef === "string" ? this.normalizeLocalKey(hostData.coverRef) : undefined;
+        const coverMediaId = typeof hostData.coverMediaId === "string" ? hostData.coverMediaId : undefined;
 
-        return { images, coverRef };
+        return { images, coverRef, coverMediaId };
     }
 
     normalizeLocalKey(value: string): string {
@@ -842,6 +859,11 @@ class BlogView{
                     typeof uploadPayload.watermarkStyleId === "string" ? uploadPayload.watermarkStyleId : ""
                 );
                 break;
+            case "publishWxDraft": {
+                const draftPayload = this.toRecord(message.data);
+                void this.publishWxDraft(typeof draftPayload.renderedHtml === "string" ? draftPayload.renderedHtml : "");
+                break;
+            }
             case "msg":
                 this.showMessage(message.data.message, message.data.type);
                 break;
@@ -910,7 +932,7 @@ class BlogView{
                 return;
             }
 
-            const uploadedNow: Array<{ localPath: string; imageUrl: string }> = [];
+            const uploadedNow: Array<{ localPath: string; imageUrl: string; mediaId?: string }> = [];
             const skipped: string[] = [];
             const failed: string[] = [];
             for (const localPath of localImageKeys) {
@@ -926,7 +948,7 @@ class BlogView{
                     continue;
                 }
 
-                let uploadResult: { imageUrl: string; imageId?: string };
+                let uploadResult: { imageUrl: string; mediaId?: string };
                 try {
                     uploadResult = await this.uploadSingleImage(
                         settings.apiUrl,
@@ -943,7 +965,8 @@ class BlogView{
 
                 uploadedNow.push({
                     localPath,
-                    imageUrl: uploadResult.imageUrl
+                    imageUrl: uploadResult.imageUrl,
+                    mediaId: uploadResult.mediaId
                 });
             }
 
@@ -976,7 +999,98 @@ class BlogView{
         }
     }
 
-    async uploadSingleImage(apiUrl: string, token: string, hostId: string, absoluteFilePath: string, watermarkStyleId?: string): Promise<{ imageUrl: string; imageId?: string }> {
+    async publishWxDraft(renderedHtml: string) {
+        const settings = this.getImageHostSettings();
+        if (!settings.enabled) {
+            this.showMessage("请先配置 mdbp.imageHost.apiUrl 和 mdbp.imageHost.token", "warning");
+            return;
+        }
+        if (!this.selectedImageHostId) {
+            this.showMessage("请先选择图床", "warning");
+            return;
+        }
+
+        const previewDocument = this.getPreviewDocument();
+        if (!previewDocument) {
+            this.showMessage("未找到可上传的 Markdown 文件", "warning");
+            return;
+        }
+
+        const normalizedHtml = renderedHtml.trim();
+        if (!normalizedHtml) {
+            this.showMessage("当前预览内容为空，无法上传草稿", "warning");
+            return;
+        }
+
+        this.view.webview.postMessage({ command: "wxDraftUploading", data: true });
+
+        try {
+            const parsed = this.parseMarkdownWithFrontMatter(previewDocument.getText());
+            const imageHostData = this.getImageHostData(parsed.frontMatter, this.selectedImageHostId);
+            const article = this.buildWxDraftArticle(parsed.frontMatter, parsed.body, normalizedHtml, imageHostData.coverMediaId);
+            const existingDraftMediaId = this.getWxDraftMediaId(parsed.frontMatter);
+
+            if (existingDraftMediaId) {
+                await this.updateWxDraft(settings.apiUrl, settings.token, existingDraftMediaId, article);
+                this.showMessage("微信草稿更新成功", "success");
+                return;
+            }
+
+            const nextDraftMediaId = await this.addWxDraft(settings.apiUrl, settings.token, article);
+            const nextFrontMatter = this.setWxDraftMediaId(parsed.frontMatter, nextDraftMediaId);
+            const nextContent = this.buildMarkdownWithFrontMatter(nextFrontMatter, parsed.body);
+            await this.replaceDocumentContent(previewDocument, nextContent);
+            this.updatePreview();
+            this.showMessage("微信草稿上传成功", "success");
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "未知错误";
+            this.showMessage(`微信草稿上传失败：${errorMessage}`, "error");
+        } finally {
+            this.view.webview.postMessage({ command: "wxDraftUploading", data: false });
+        }
+    }
+
+    async addWxDraft(apiUrl: string, token: string, article: WxDraftArticlePayload): Promise<string> {
+        const signedUrl = this.buildSignedUrl(apiUrl, "/api/wx/cgi-bin/draft/add?access_token=ACCESS_TOKEN", token);
+        const response = await fetch(signedUrl, {
+            method: "POST",
+            headers: {
+                ["Content-Type"]: "application/json"
+            },
+            body: JSON.stringify({
+                articles: [this.toWxDraftArticleRequest(article)]
+            })
+        });
+        const payload = this.normalizeWxApiResponse(await this.parseJsonResponse<Record<string, unknown>>(response));
+
+        if (!response.ok || typeof payload.mediaId !== "string" || !payload.mediaId.trim()) {
+            throw new Error(this.buildWxApiError("新增微信草稿", response, payload));
+        }
+
+        return payload.mediaId.trim();
+    }
+
+    async updateWxDraft(apiUrl: string, token: string, mediaId: string, article: WxDraftArticlePayload): Promise<void> {
+        const signedUrl = this.buildSignedUrl(apiUrl, "/api/wx/cgi-bin/draft/update?access_token=ACCESS_TOKEN", token);
+        const response = await fetch(signedUrl, {
+            method: "POST",
+            headers: {
+                ["Content-Type"]: "application/json"
+            },
+            body: JSON.stringify({
+                ["media_id"]: mediaId,
+                index: 0,
+                articles: this.toWxDraftArticleRequest(article)
+            })
+        });
+        const payload = this.normalizeWxApiResponse(await this.parseJsonResponse<Record<string, unknown>>(response));
+
+        if (!response.ok || payload.errcode !== 0) {
+            throw new Error(this.buildWxApiError("更新微信草稿", response, payload));
+        }
+    }
+
+    async uploadSingleImage(apiUrl: string, token: string, hostId: string, absoluteFilePath: string, watermarkStyleId?: string): Promise<{ imageUrl: string; mediaId?: string }> {
         const signedUploadUrl = this.buildSignedUrl(apiUrl, "/api/imagehost/upload", token);
         const formData = new FormData();
         const fileBuffer = fs.readFileSync(absoluteFilePath);
@@ -995,6 +1109,7 @@ class BlogView{
             data?: {
                 success?: boolean;
                 imageUrl?: string;
+                mediaId?: string;
                 imageId?: string;
             };
         }>(response);
@@ -1006,7 +1121,7 @@ class BlogView{
 
         return {
             imageUrl,
-            imageId: payload.data.imageId
+            mediaId: payload.data.mediaId ?? payload.data.imageId
         };
     }
 
@@ -1028,6 +1143,158 @@ class BlogView{
         const msg = typeof payload?.msg === "string" && payload.msg.trim() ? payload.msg.trim() : "无错误消息";
         const codeText = code !== undefined ? ` code=${code}` : "";
         return `${action}失败(status=${response.status}${codeText}): ${msg}`;
+    }
+
+    buildWxApiError(action: string, response: Response, payload?: WxApiResponsePayload): string {
+        const code = typeof payload?.errcode === "number" ? payload.errcode : undefined;
+        const msg = typeof payload?.errmsg === "string" && payload.errmsg.trim()
+            ? payload.errmsg.trim()
+            : (typeof payload?.mediaId === "string" && payload.mediaId.trim() ? "接口返回缺少预期字段" : "无错误消息");
+        const codeText = code !== undefined ? ` code=${code}` : "";
+        return `${action}失败(status=${response.status}${codeText}): ${msg}`;
+    }
+
+    normalizeWxApiResponse(payload: Record<string, unknown>): WxApiResponsePayload {
+        return {
+            errcode: typeof payload.errcode === "number" ? payload.errcode : undefined,
+            errmsg: typeof payload.errmsg === "string" ? payload.errmsg : undefined,
+            mediaId: typeof payload.mediaId === "string"
+                ? payload.mediaId
+                : (typeof payload.media_id === "string" ? payload.media_id : undefined)
+        };
+    }
+
+    toWxDraftArticleRequest(article: WxDraftArticlePayload): Record<string, unknown> {
+        const payload: Record<string, unknown> = {
+            title: article.title,
+            content: article.content,
+            ["thumb_media_id"]: article.thumbMediaId,
+            ["need_open_comment"]: article.needOpenComment
+        };
+
+        if (article.author) {
+            payload.author = article.author;
+        }
+        if (article.digest) {
+            payload.digest = article.digest;
+        }
+
+        return payload;
+    }
+
+    buildWxDraftArticle(
+        frontMatter: Record<string, unknown>,
+        markdownBody: string,
+        renderedHtml: string,
+        coverMediaId?: string
+    ): WxDraftArticlePayload {
+        const title = typeof frontMatter.title === "string" ? frontMatter.title.trim() : "";
+        if (!title) {
+            throw new Error("缺少标题，请先在 front matter 中设置 title");
+        }
+        if (!coverMediaId) {
+            throw new Error("缺少封面素材 ID，请先上传封面图并生成 coverMediaId");
+        }
+
+        const article: WxDraftArticlePayload = {
+            title,
+            content: renderedHtml,
+            thumbMediaId: coverMediaId,
+            needOpenComment: 1
+        };
+
+        const author = typeof frontMatter.author === "string" ? frontMatter.author.trim() : "";
+        if (author) {
+            article.author = author;
+        }
+
+        const digest = this.resolveWxDraftDigest(frontMatter, markdownBody);
+        if (digest) {
+            article.digest = digest;
+        }
+
+        return article;
+    }
+
+    resolveWxDraftDigest(frontMatter: Record<string, unknown>, markdownBody: string): string | undefined {
+        const explicitDigest = typeof frontMatter.digest === "string" ? frontMatter.digest.trim() : "";
+        if (explicitDigest) {
+            return explicitDigest.slice(0, 128);
+        }
+
+        const leadingQuote = this.extractLeadingBlockquoteText(markdownBody);
+        if (leadingQuote) {
+            return leadingQuote.slice(0, 128);
+        }
+
+        const plainText = this.stripMarkdownToPlainText(markdownBody);
+        return plainText ? plainText.slice(0, 54) : undefined;
+    }
+
+    extractLeadingBlockquoteText(markdownBody: string): string {
+        const lines = markdownBody.replace(/\r/g, "").split("\n");
+        let started = false;
+        const quoteLines: string[] = [];
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!started && !trimmed) {
+                continue;
+            }
+            if (!started && trimmed.startsWith(">")) {
+                started = true;
+            }
+
+            if (!started) {
+                break;
+            }
+
+            if (!trimmed) {
+                quoteLines.push("");
+                continue;
+            }
+
+            if (!trimmed.startsWith(">")) {
+                break;
+            }
+
+            quoteLines.push(trimmed.replace(/^>\s?/, ""));
+        }
+
+        return quoteLines.join(" ").replace(/\s+/g, " ").trim();
+    }
+
+    stripMarkdownToPlainText(markdownBody: string): string {
+        return markdownBody
+            .replace(/```[\s\S]*?```/g, " ")
+            .replace(/`([^`]+)`/g, "$1")
+            .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+            .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/^#{1,6}\s+/gm, "")
+            .replace(/^>\s?/gm, "")
+            .replace(/^[-*+]\s+/gm, "")
+            .replace(/^\d+\.\s+/gm, "")
+            .replace(/[>*_~#-]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    getWxDraftMediaId(frontMatter: Record<string, unknown>): string | undefined {
+        const mdbp = this.toRecord(frontMatter.mdbp);
+        return typeof mdbp.wxDraftMediaId === "string" && mdbp.wxDraftMediaId.trim()
+            ? mdbp.wxDraftMediaId.trim()
+            : undefined;
+    }
+
+    setWxDraftMediaId(frontMatter: Record<string, unknown>, mediaId: string): Record<string, unknown> {
+        const nextFrontMatter: Record<string, unknown> = { ...frontMatter };
+        const mdbp = this.toRecord(nextFrontMatter.mdbp);
+        nextFrontMatter.mdbp = {
+            ...mdbp,
+            wxDraftMediaId: mediaId
+        };
+        return nextFrontMatter;
     }
 
     extractLocalImageKeysFromMarkdown(markdownBody: string): Set<string> {
@@ -1081,7 +1348,7 @@ class BlogView{
     applyUploadedMappingsToFrontMatter(
         frontMatter: Record<string, unknown>,
         hostId: string,
-        uploadedMappings: Array<{ localPath: string; imageUrl: string }>,
+        uploadedMappings: Array<{ localPath: string; imageUrl: string; mediaId?: string }>,
         coverLocalPath: string
     ): Record<string, unknown> {
         const nextFrontMatter: Record<string, unknown> = { ...frontMatter };
@@ -1099,6 +1366,10 @@ class BlogView{
 
         if (coverLocalPath) {
             hostData.coverRef = coverLocalPath;
+            const coverImage = uploadedMappings.find((item) => this.normalizeLocalKey(item.localPath) === coverLocalPath);
+            if (coverImage?.mediaId) {
+                hostData.coverMediaId = coverImage.mediaId;
+            }
         }
         hostData.updatedAt = now;
 

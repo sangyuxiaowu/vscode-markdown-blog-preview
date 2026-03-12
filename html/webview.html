@@ -84,16 +84,22 @@
             flex-wrap: wrap;
         }
 
-        #upload-images[disabled] {
+        #upload-images[disabled],
+        #upload-wx-draft[disabled] {
             cursor: not-allowed;
             opacity: 0.6;
         }
 
-        #upload-images {
+        #upload-images,
+        #upload-wx-draft {
             width: auto;
             padding: 4px 10px;
             margin-left: 8px;
             white-space: nowrap;
+        }
+
+        #upload-wx-draft {
+            display: none;
         }
 
         .preview-wrapper {
@@ -189,6 +195,9 @@
                 </select>
                 <a class="monaco-button monaco-text-button" id="upload-images" tabindex="0" role="button" title="上传本地图片">
                     <div class="monaco-button-label">上传图片</div>
+                </a>
+                <a class="monaco-button monaco-text-button" id="upload-wx-draft" tabindex="0" role="button" title="上传微信草稿">
+                    <div class="monaco-button-label">上传草稿</div>
                 </a>
             </div>
         </div>

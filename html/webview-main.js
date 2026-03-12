@@ -13,6 +13,7 @@
         imageHostSelect: document.getElementById("image-host"),
         watermarkStyleSelect: document.getElementById("watermark-style"),
         uploadImagesButton: document.getElementById("upload-images"),
+        uploadWxDraftButton: document.getElementById("upload-wx-draft"),
         linkReferenceCheckbox: document.getElementById("convert-links-to-references"),
         wechatAdaptationCheckbox: document.getElementById("wechat-adaptation"),
         viewHost: document.getElementById("view-host"),
@@ -35,6 +36,8 @@
         selectedImageHostId: initialState.selectedImageHostId || "",
         selectedWatermarkStyleId: initialState.selectedWatermarkStyleId || "",
         isImageHostEnabled: false,
+        isWxDraftUploading: false,
+        pendingWxDraftPublish: false,
         linkReferenceOverrides: initialState.linkReferenceOverrides && typeof initialState.linkReferenceOverrides === "object"
             ? initialState.linkReferenceOverrides
             : {},
@@ -81,6 +84,17 @@
         refs.uploadImagesButton.setAttribute("aria-disabled", "true");
     }
 
+    function setWxDraftButtonEnabled(enabled) {
+        if (enabled) {
+            refs.uploadWxDraftButton.removeAttribute("disabled");
+            refs.uploadWxDraftButton.removeAttribute("aria-disabled");
+            return;
+        }
+
+        refs.uploadWxDraftButton.setAttribute("disabled", "disabled");
+        refs.uploadWxDraftButton.setAttribute("aria-disabled", "true");
+    }
+
     function syncSettingsHeight() {
         document.documentElement.style.setProperty("--settings-height", refs.imageHostRow.style.display === "flex" ? "128px" : "92px");
     }
@@ -115,6 +129,17 @@
         refs.wechatAdaptationCheckbox.checked = getWechatAdaptationEnabled(themeId);
     }
 
+    function syncWxDraftButton() {
+        const visible = isWechatTheme(state.selectedThemeId);
+        refs.uploadWxDraftButton.style.display = visible ? "inline-flex" : "none";
+        setWxDraftButtonEnabled(visible && state.isImageHostEnabled && Boolean(state.selectedImageHostId) && !state.isWxDraftUploading);
+    }
+
+    function setWxDraftUploading(uploading) {
+        state.isWxDraftUploading = Boolean(uploading);
+        syncWxDraftButton();
+    }
+
     window.mdbpApp = {
         vscode,
         refs,
@@ -127,10 +152,13 @@
         findCodeThemeById,
         updateWebviewState,
         setUploadButtonEnabled,
+        setWxDraftButtonEnabled,
         syncSettingsHeight,
         getLinkReferenceEnabled,
         syncLinkReferenceCheckbox,
         getWechatAdaptationEnabled,
-        syncWechatAdaptationCheckbox
+        syncWechatAdaptationCheckbox,
+        syncWxDraftButton,
+        setWxDraftUploading
     };
 })();

@@ -87,6 +87,7 @@
         if (!app.state.isImageHostEnabled || hostItems.length === 0) {
             app.state.selectedImageHostId = "";
             app.setUploadButtonEnabled(false);
+            app.syncWxDraftButton();
             app.updateWebviewState();
             return;
         }
@@ -99,6 +100,7 @@
 
         app.refs.imageHostSelect.value = app.state.selectedImageHostId;
         app.setUploadButtonEnabled(true);
+        app.syncWxDraftButton();
         app.updateWebviewState();
     }
 

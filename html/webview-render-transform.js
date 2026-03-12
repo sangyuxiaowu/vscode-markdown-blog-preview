@@ -203,7 +203,7 @@
                     return;
                 }
 
-                const paragraph = document.createElement("p");
+                const paragraph = document.createElement("section");
                 inlineBuffer.forEach((node) => {
                     paragraph.appendChild(node);
                 });

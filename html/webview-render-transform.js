@@ -193,6 +193,14 @@
     function applyFinalWechatStructure(root) {
         const blockTags = new Set(["P", "UL", "OL", "PRE", "SECTION", "TABLE", "BLOCKQUOTE", "DIV", "FIGURE", "H1", "H2", "H3", "H4", "H5", "H6"]);
 
+        root.querySelectorAll("ol, ul").forEach((list) => {
+            Array.from(list.childNodes).forEach((node) => {
+                if (node.nodeType === Node.TEXT_NODE && !(node.textContent || "").trim()) {
+                    list.removeChild(node);
+                }
+            });
+        });
+
         root.querySelectorAll("li").forEach((li) => {
             const childNodes = Array.from(li.childNodes);
             const fragment = document.createDocumentFragment();
@@ -242,9 +250,23 @@
             textNodes.forEach((textNode) => {
                 const original = textNode.nodeValue || "";
                 const normalized = normalizeLineIndent(original);
-                if (normalized !== original) {
-                    textNode.nodeValue = normalized;
+                if (!normalized.includes("\n")) {
+                    if (normalized !== original) {
+                        textNode.nodeValue = normalized;
+                    }
+                    return;
                 }
+
+                const fragment = document.createDocumentFragment();
+                normalized.split("\n").forEach((segment, index, segments) => {
+                    if (segment) {
+                        fragment.appendChild(document.createTextNode(segment));
+                    }
+                    if (index < segments.length - 1) {
+                        fragment.appendChild(document.createElement("br"));
+                    }
+                });
+                textNode.replaceWith(fragment);
             });
         });
     }

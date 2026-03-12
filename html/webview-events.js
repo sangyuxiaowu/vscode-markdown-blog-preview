@@ -66,6 +66,18 @@
         });
     });
 
+    refs.uploadWxDraftButton.addEventListener("click", () => {
+        if (refs.uploadWxDraftButton.hasAttribute("disabled")) {
+            return;
+        }
+
+        state.pendingWxDraftPublish = true;
+        postCommand("uploadImages", {
+            hostId: state.selectedImageHostId,
+            watermarkStyleId: state.selectedWatermarkStyleId
+        });
+    });
+
     refs.wechatAdaptationCheckbox.addEventListener("change", () => {
         state.wechatAdaptationOverrides[state.selectedThemeId] = refs.wechatAdaptationCheckbox.checked;
         app.updateWebviewState();
@@ -149,6 +161,17 @@
                 } else if (state.isImageHostEnabled && state.selectedImageHostId) {
                     app.setUploadButtonEnabled(true);
                 }
+
+                if (!uploading && state.pendingWxDraftPublish) {
+                    state.pendingWxDraftPublish = false;
+                    postCommand("publishWxDraft", {
+                        renderedHtml: state.latestRenderedInlineHtml || app.view.shadowView.innerHTML || ""
+                    });
+                }
+                break;
+            }
+            case "wxDraftUploading": {
+                app.setWxDraftUploading(Boolean(message.data));
                 break;
             }
         }

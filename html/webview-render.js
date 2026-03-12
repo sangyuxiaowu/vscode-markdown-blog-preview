@@ -12,6 +12,7 @@
 
         const previewStyle = app.renderStyle.normalizeStyleObject(theme?.previewStyle);
         Object.assign(app.refs.previewInfo.style, previewStyle);
+        app.syncWxDraftButton();
 
         applyFontSize(app.refs.fontSizeSelect.value);
     }
